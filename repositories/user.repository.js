@@ -1,4 +1,5 @@
 import { User } from "../models/index.js";
+import { UserRole } from "../models/UserRole.js";
 import { BaseRepository } from "./base.repository.js";
 import { AppError } from "../utils/AppError.js";
 
@@ -106,32 +107,32 @@ export class UserRepository extends BaseRepository {
   }
 
   async findByIdGlobal(id) {
-    const defaultInclude = [
-      {
-        association: "roles",
-        attributes: ["id", "name", "roleType"],
-        through: { attributes: [] },
-        include: [
-          {
-            association: "permissions",
-            attributes: ["id", "name", "action", "resource", "module", "description"],
-            through: { attributes: [] },
-          },
-        ],
-      },
-      {
-        association: "organization",
-        attributes: ["id", "name", "organizationType", "officialEmail", "subdomain", "settings"],
-      },
-    ];
-
     const user = await this.model.findOne({
       where: { id },
       attributes: { exclude: ["password"] },
-      include: defaultInclude,
+      include: [
+        {
+          association: "organization",
+          attributes: ["id", "name", "organizationType", "officialEmail", "subdomain", "settings"],
+        },
+      ],
     });
 
     if (!user) throw new AppError("User not found", 404);
+
+    const assignments = await UserRole.findAll({
+      where: { userId: id },
+      attributes: ["roleId"],
+      raw: true,
+    });
+
+    user.dataValues.roles = assignments.map((assignment) => ({
+      id: assignment.roleId,
+      name: null,
+      roleType: null,
+      permissions: [],
+    }));
+
     return user;
   }
 

@@ -183,12 +183,13 @@ export class UserService {
     // Fetch user with associations for complete profile (global search)
     const userWithAssociations = await userRepo.findByIdGlobal(user.id);
     const userResponse = this.formatUserResponse(userWithAssociations);
+    const firstRoleId = userResponse.roles?.[0]?.id ?? null;
     
     // Generate JWT token
     const token = JwtHelper.generateToken({
       id: userWithAssociations.id,
       email: userWithAssociations.email,
-      roleId:userResponse.roles[0].id,
+      roleId: firstRoleId,
       userType: userWithAssociations.userType,
       tenantId: userWithAssociations.tenantId,
     });

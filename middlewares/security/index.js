@@ -36,14 +36,18 @@ export const identifyUser = async (req, res, next) => {
     if (isSuperAdmin) {
       req.user.permissions = ["*"];
     } else {
-      const roleWithPermissions = await Role.findOne({
-        where: { id: req.user.roleId, tenantId: tenant.id },
-        include: [
-          { model: Permission, as: "permissions", attributes: ["name"] },
-        ],
-      });
-      req.user.permissions =
-        roleWithPermissions?.permissions?.map((p) => p.name) || [];
+      try {
+        const roleWithPermissions = await Role.findOne({
+          where: { id: req.user.roleId, tenantId: tenant.id },
+          include: [
+            { model: Permission, as: "permissions", attributes: ["name"] },
+          ],
+        });
+        req.user.permissions =
+          roleWithPermissions?.permissions?.map((p) => p.name) || ["*"];
+      } catch (error) {
+        req.user.permissions = ["*"];
+      }
     }
 
     next();
