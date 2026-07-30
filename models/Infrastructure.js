@@ -29,7 +29,7 @@ export const Room = sequelize.define(
     underscored: true,
     tableName: "rooms",
     // indexes: [{ unique: true, fields: ["tenant_id", "name"] }],
-  }
+  },
 );
 
 // ─── Timetable ────────────────────────────────────────────────────────────────
@@ -66,7 +66,7 @@ export const Timetable = sequelize.define(
     underscored: true,
     tableName: "timetables",
     // indexes: [{ fields: ["tenant_id", "section_id", "status"] }],
-  }
+  },
 );
 
 // ─── TimetableSlot ────────────────────────────────────────────────────────────
@@ -86,7 +86,10 @@ export const TimetableSlot = sequelize.define(
     subjectId: {
       type: DataTypes.UUID,
       allowNull: false,
-      references: { model: "subjects", key: "id" },
+      references: {
+        model: "class_subjects",
+        key: "id",
+      },
     },
     teacherId: {
       type: DataTypes.UUID,
@@ -119,5 +122,5 @@ export const TimetableSlot = sequelize.define(
     //   // Collision detection: Room cannot host two subjects at the same time
     //   { unique: true, fields: ["tenant_id", "room_id", "day_of_week", "period_number"] },
     // ],
-  }
+  },
 );
