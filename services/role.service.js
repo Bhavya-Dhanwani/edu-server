@@ -1,10 +1,14 @@
 import sequelize from "../config/db.js";
+console.log("ROLE SERVICE LOADED");
 import { PermissionRepository } from "../repositories/permission.repository.js";
 import { RoleRepository } from "../repositories/role.repository.js";
 import { AppError } from "../utils/AppError.js";
 import { RolePermission } from "../models/index.js";
 import { ROLE_TYPES } from "../utils/role-type.js";
-import { ADMIN_PERMISSIONS, ROLE_MASTER_CONFIG } from "../config/masterPermission.js";
+import {
+  ADMIN_PERMISSIONS,
+  ROLE_MASTER_CONFIG,
+} from "../config/masterPermission.js";
 
 const roleRepo = new RoleRepository();
 const permissionRepo = new PermissionRepository();
@@ -33,23 +37,41 @@ const normalizeRoleType = (value, { required = false } = {}) => {
 };
 
 export class RoleService {
- // src/services/role.service.js
+  // src/services/role.service.js
 
-async createRole(payload, options = {}) {
+  async createRole(payload, options = {}) {
     const roleType = normalizeRoleType(payload.roleType, { required: true });
     const tenantId = payload.tenantId?.trim() || null;
-    const permissionIds = [...new Set(payload.permissionIds || [])];
+    const permissionNames = [...new Set(payload.permissionIds || [])];
+    console.log("Creating Role:", payload.name);
 
-    // Permissions check (Ye DB call hai, transaction se bahar bhi chalega)
-    const permissions = permissionIds.length
-      ? await permissionRepo.findByIds(permissionIds)
+    console.log("Permission Names:", permissionNames);
+
+    const permissions = permissionNames.length
+      ? await permissionRepo.findByNames(permissionNames)
       : [];
-      
-    if (permissions.length !== permissionIds.length) {
-      throw new AppError("One or more permissionIds are invalid", 400);
-    }
 
-    // 🔥 LOGIC: Agar options mein transaction hai toh wahi use karo, 
+    const foundNames = permissions.map((p) => p.name);
+
+    console.log("Permissions Found:", foundNames);
+
+    const missingPermissions = permissionNames.filter(
+      (name) => !foundNames.includes(name),
+    );
+
+    console.log("Missing Permissions:", missingPermissions);
+
+    if (permissions.length !== permissionNames.length) {
+      throw new AppError(
+        `One or more permissions are invalid: ${missingPermissions.join(", ")}`,
+        400,
+      );
+    }
+    console.log("Found:", permissions.length);
+
+    const permissionIds = permissions.map((permission) => permission.id);
+
+    // 🔥 LOGIC: Agar options mein transaction hai toh wahi use karo,
     // nahi toh nayi transaction create karo.
     let transaction = options.transaction;
     let localTransaction = false;
@@ -72,7 +94,7 @@ async createRole(payload, options = {}) {
           customFields: payload.customFields || {},
           metadata: payload.metadata || {},
         },
-        { transaction }, 
+        { transaction },
       );
 
       await roleRepo.attachPermissions(role.id, permissionIds, { transaction });
@@ -113,32 +135,35 @@ async createRole(payload, options = {}) {
   }
 
   async provisionDefaultTenantRoles(tenantId, transaction) {
-    
-    const adminRole =  await this.createRole({
-    name: "Platform Admin",
-    roleType: "platform",
-    slug: null,
-    hierarchyLevel: 1,
-    isSystem: true,
-    tenantId,
-    permissionIds: ADMIN_PERMISSIONS, 
-  }, { transaction });
+    const adminRole = await this.createRole(
+      {
+        name: "Platform Admin",
+        roleType: "platform",
+        slug: null,
+        hierarchyLevel: 1,
+        isSystem: true,
+        tenantId,
+        permissionIds: ADMIN_PERMISSIONS,
+      },
+      { transaction },
+    );
 
-
-
-  for (const [slug, config] of Object.entries(ROLE_MASTER_CONFIG)) {
-    await this.createRole({
-      name: config.name,
-      roleType: config.roleType,
-      slug: slug,
-      hierarchyLevel: config.hierarchyLevel,
-      isSystem: true,
-      tenantId,
-      permissionIds: config.permissions,
-    }, { transaction });
+    for (const [slug, config] of Object.entries(ROLE_MASTER_CONFIG)) {
+      await this.createRole(
+        {
+          name: config.name,
+          roleType: config.roleType,
+          slug: slug,
+          hierarchyLevel: config.hierarchyLevel,
+          isSystem: true,
+          tenantId,
+          permissionIds: config.permissions,
+        },
+        { transaction },
+      );
+    }
+    return adminRole;
   }
-  return adminRole ; 
-}
 
   //assign permission
   // In role.service.js - Add this method to your RoleService class
@@ -290,7 +315,7 @@ async createRole(payload, options = {}) {
       tenantId: role.tenantId,
       name: role.name,
       roleType: role.roleType,
-      slug:role.slug,
+      slug: role.slug,
       description: role.description,
       isSystem: role.isSystem,
       hierarchyLevel: role.hierarchyLevel,

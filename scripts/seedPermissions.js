@@ -282,6 +282,13 @@ const permissions = [
     description: "Create a new subject master record",
   },
   {
+    name: "read:subject",
+    action: "read",
+    resource: "subject",
+    module: "academics",
+    description: "Read and list subjects",
+  },
+  {
     name: "update:subject",
     action: "update",
     resource: "subject",
@@ -319,6 +326,13 @@ const permissions = [
     module: "academics",
     description: "Remove a subject assignment from a class",
   },
+  {
+    name: "read:class-subject",
+    action: "read",
+    resource: "class-subject",
+    module: "academics",
+    description: "Read and list class-subject assignments",
+  },  
 
   // ─── Enrollments ───────────────────────────────────────────
   {
@@ -359,6 +373,13 @@ const permissions = [
     description: "Mark daily attendance for students",
   },
   {
+    name: "read:attendance",
+    action: "read",
+    resource: "attendance",
+    module: "attendance",
+    description: "View attendance records",
+  },
+  {
     name: "update:attendance",
     action: "update",
     resource: "attendance",
@@ -372,7 +393,66 @@ const permissions = [
     module: "attendance",
     description: "Delete a daily attendance record",
   },
+  // ─── Exams ────────────────────────────────────
 
+  {
+    name: "create:exams",
+    action: "create",
+    resource: "exams",
+    module: "examination",
+    description: "Create exams",
+  },
+  {
+    name: "read:exams",
+    action: "read",
+    resource: "exams",
+    module: "examination",
+    description: "Read exams",
+  },
+  {
+    name: "update:exams",
+    action: "update",
+    resource: "exams",
+    module: "examination",
+    description: "Update exams",
+  },
+  {
+    name: "delete:exams",
+    action: "delete",
+    resource: "exams",
+    module: "examination",
+    description: "Delete exams",
+  },
+
+  // ─── Teacher Assignment ───────────────────────────────────
+  {
+    name: "create:teacher-assignment",
+    action: "create",
+    resource: "teacher-assignment",
+    module: "academics",
+    description: "Create teacher assignment",
+  },
+  {
+    name: "read:teacher-assignment",
+    action: "read",
+    resource: "teacher-assignment",
+    module: "academics",
+    description: "Read teacher assignment",
+  },
+  {
+    name: "update:teacher-assignment",
+    action: "update",
+    resource: "teacher-assignment",
+    module: "academics",
+    description: "Update teacher assignment",
+  },
+  {
+    name: "delete:teacher-assignment",
+    action: "delete",
+    resource: "teacher-assignment",
+    module: "academics",
+    description: "Delete teacher assignment",
+  },
   // ─── Attendance Periods ────────────────────────────────────
   {
     name: "create:attendance-periods",
@@ -380,6 +460,13 @@ const permissions = [
     resource: "attendance-periods",
     module: "attendance",
     description: "Mark period-wise attendance for students",
+  },
+  {
+    name: "read:attendance-periods",
+    action: "read",
+    resource: "attendance-periods",
+    module: "attendance",
+    description: "View attendance periods",
   },
   {
     name: "update:attendance-periods",
@@ -456,7 +543,8 @@ const permissions = [
     action: "update",
     resource: "fee-structure-item",
     module: "finance",
-    description: "Update the amount or optional flag of a fee structure line item",
+    description:
+      "Update the amount or optional flag of a fee structure line item",
   },
   {
     name: "delete:fee-structure-item",
@@ -464,6 +552,209 @@ const permissions = [
     resource: "fee-structure-item",
     module: "finance",
     description: "Remove a fee head line item from a fee structure",
+  },
+  // ───Notice ───────────────────────────────────
+  {
+    name: "create:notices",
+    action: "create",
+    resource: "notices",
+    module: "communication",
+    description: "Create notices",
+  },
+  {
+    name: "read:notices",
+    action: "read",
+    resource: "notices",
+    module: "communication",
+    description: "Read notices",
+  },
+  {
+    name: "update:notices",
+    action: "update",
+    resource: "notices",
+    module: "communication",
+    description: "Update notices",
+  },
+  {
+    name: "delete:notices",
+    action: "delete",
+    resource: "notices",
+    module: "communication",
+    description: "Delete notices",
+  },
+  // ───Guardian───────────────────────────────────
+  {
+    name: "create:guardian",
+    action: "create",
+    resource: "guardian",
+    module: "academics",
+    description: "Create guardian",
+  },
+  {
+    name: "read:guardian",
+    action: "read",
+    resource: "guardian",
+    module: "academics",
+    description: "Read guardian",
+  },
+  {
+    name: "update:guardian",
+    action: "update",
+    resource: "guardian",
+    module: "academics",
+    description: "Update guardian",
+  },
+  {
+    name: "delete:guardian",
+    action: "delete",
+    resource: "guardian",
+    module: "academics",
+    description: "Delete guardian",
+  },
+  // ───Admission Lead───────────────────────────────────
+  {
+    name: "create:admission_lead",
+    action: "create",
+    resource: "admission_lead",
+    module: "admission",
+    description: "Create admission lead",
+  },
+  {
+    name: "read:admission_lead",
+    action: "read",
+    resource: "admission_lead",
+    module: "admission",
+    description: "Read admission lead",
+  },
+  {
+    name: "update:admission_lead",
+    action: "update",
+    resource: "admission_lead",
+    module: "admission",
+    description: "Update admission lead",
+  },
+  {
+    name: "delete:admission_lead",
+    action: "delete",
+    resource: "admission_lead",
+    module: "admission",
+    description: "Delete admission lead",
+  },
+  // ───infrastructure───────────────────────────────────
+  {
+    name: "create:infrastructure",
+    action: "create",
+    resource: "infrastructure",
+    module: "platform",
+    description: "Create infrastructure",
+  },
+  {
+    name: "read:infrastructure",
+    action: "read",
+    resource: "infrastructure",
+    module: "platform",
+    description: "Read infrastructure",
+  },
+  {
+    name: "update:infrastructure",
+    action: "update",
+    resource: "infrastructure",
+    module: "platform",
+    description: "Update infrastructure",
+  },
+  {
+    name: "delete:infrastructure",
+    action: "delete",
+    resource: "infrastructure",
+    module: "platform",
+    description: "Delete infrastructure",
+  },
+  // ───payroll───────────────────────────────────
+  {
+    name: "create:payroll",
+    action: "create",
+    resource: "payroll",
+    module: "finance",
+    description: "Create payroll",
+  },
+  {
+    name: "read:payroll",
+    action: "read",
+    resource: "payroll",
+    module: "finance",
+    description: "Read payroll",
+  },
+  {
+    name: "update:payroll",
+    action: "update",
+    resource: "payroll",
+    module: "finance",
+    description: "Update payroll",
+  },
+  {
+    name: "delete:payroll",
+    action: "delete",
+    resource: "payroll",
+    module: "finance",
+    description: "Delete payroll",
+  },
+  // ─── invoices ───────────────────────────────────
+  {
+    name: "create:invoices",
+    action: "create",
+    resource: "invoices",
+    module: "finance",
+    description: "Create invoices",
+  },
+  {
+    name: "read:invoices",
+    action: "read",
+    resource: "invoices",
+    module: "finance",
+    description: "Read invoices",
+  },
+  {
+    name: "update:invoices",
+    action: "update",
+    resource: "invoices",
+    module: "finance",
+    description: "Update invoices",
+  },
+  {
+    name: "delete:invoices",
+    action: "delete",
+    resource: "invoices",
+    module: "finance",
+    description: "Delete invoices",
+  },
+  // ─── fees ───────────────────────────────────
+  {
+    name: "create:fees",
+    action: "create",
+    resource: "fees",
+    module: "finance",
+    description: "Create fees",
+  },
+  {
+    name: "read:fees",
+    action: "read",
+    resource: "fees",
+    module: "finance",
+    description: "Read fees",
+  },
+  {
+    name: "update:fees",
+    action: "update",
+    resource: "fees",
+    module: "finance",
+    description: "Update fees",
+  },
+  {
+    name: "delete:fees",
+    action: "delete",
+    resource: "fees",
+    module: "finance",
+    description: "Delete fees",
   },
 ];
 
