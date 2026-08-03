@@ -23,6 +23,10 @@ export class StudentController {
     res.status(200).json({ success: true, ...result });
   });
 
+  getMe = catchAsync(async (req, res) => {
+    const data = await studentService.getStudentByUserId(req.user.id, req.tenantId);
+    res.status(200).json({ success: true, data });
+  });
 
   getOne = catchAsync(async (req, res) => {
     const data = await studentService.getStudentById(req.params.id, req.tenantId);

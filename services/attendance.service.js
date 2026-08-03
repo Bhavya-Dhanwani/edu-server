@@ -371,22 +371,22 @@ export class AttendanceService extends BaseService {
       id: attendance.id,
       student: attendance.student
         ? {
-            id: attendance.student.id,
-            name: `${attendance.student.user?.firstName || ""} ${attendance.student.user?.lastName || ""}`.trim(),
-            email: attendance.student.user?.email,
-          }
+          id: attendance.student.id,
+          name: `${attendance.student.user?.firstName || ""} ${attendance.student.user?.lastName || ""}`.trim(),
+          email: attendance.student.user?.email,
+        }
         : null,
       section: attendance.section
         ? {
-            id: attendance.section.id,
-            name: attendance.section.name,
-          }
+          id: attendance.section.id,
+          name: attendance.section.name,
+        }
         : null,
       academicYear: attendance.academicYear
         ? {
-            id: attendance.academicYear.id,
-            name: attendance.academicYear.name,
-          }
+          id: attendance.academicYear.id,
+          name: attendance.academicYear.name,
+        }
         : null,
       date: attendance.date,
       status: attendance.status,
@@ -394,17 +394,17 @@ export class AttendanceService extends BaseService {
       outTime: attendance.outTime,
       markedBy: attendance.markedBy
         ? {
-            id: attendance.markedBy.id,
-            name: `${attendance.markedBy.firstName} ${attendance.markedBy.lastName}`,
-          }
+          id: attendance.markedBy.id,
+          name: `${attendance.markedBy.firstName} ${attendance.markedBy.lastName}`,
+        }
         : null,
       markedAt: attendance.markedAt,
       isCorrected: attendance.isCorrected,
       correctedBy: attendance.correctedBy
         ? {
-            id: attendance.correctedBy.id,
-            name: `${attendance.correctedBy.firstName} ${attendance.correctedBy.lastName}`,
-          }
+          id: attendance.correctedBy.id,
+          name: `${attendance.correctedBy.firstName} ${attendance.correctedBy.lastName}`,
+        }
         : null,
       correctionReason: attendance.correctionReason,
       remarks: attendance.remarks,

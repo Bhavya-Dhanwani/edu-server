@@ -10,7 +10,7 @@ import { UserRoleService } from "./user-role.service.js";
 const tenantRepo = new TenantRepository();
 const roleService = new RoleService();
 const userService = new UserService();
-const userRoleService = new UserRoleService() ; 
+const userRoleService = new UserRoleService();
 const PROVISIONING_STEPS = ["schema_created", "seeded", "dns_provisioned"];
 const ALLOWED_IMAGE_MIME_TYPES = {
   "image/png": "png",
@@ -21,7 +21,8 @@ const ALLOWED_IMAGE_MIME_TYPES = {
   "image/x-icon": "ico",
   "image/vnd.microsoft.icon": "ico",
 };
-const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const UUID_REGEX =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const MAX_ASSET_BYTES = 5 * 1024 * 1024;
 
 const slugify = (value) =>
@@ -39,7 +40,10 @@ const buildPortalUrl = (subdomain) => {
 };
 
 const isPlainObject = (value) =>
-  Boolean(value) && typeof value === "object" && !Array.isArray(value) && Object.getPrototypeOf(value) === Object.prototype;
+  Boolean(value) &&
+  typeof value === "object" &&
+  !Array.isArray(value) &&
+  Object.getPrototypeOf(value) === Object.prototype;
 
 const mergeObjects = (currentValue, nextValue) => {
   if (!isPlainObject(currentValue) || !isPlainObject(nextValue)) {
@@ -49,16 +53,17 @@ const mergeObjects = (currentValue, nextValue) => {
   const merged = { ...currentValue };
 
   for (const [key, value] of Object.entries(nextValue)) {
-    merged[key] = isPlainObject(value) && isPlainObject(currentValue[key])
-      ? mergeObjects(currentValue[key], value)
-      : value;
+    merged[key] =
+      isPlainObject(value) && isPlainObject(currentValue[key])
+        ? mergeObjects(currentValue[key], value)
+        : value;
   }
 
   return merged;
 };
 
 export class TenantService {
- async registerTenant(data) {
+  async registerTenant(data) {
     // 1. Initial Validations
     const planIdentifier = data.plan ?? data.planId ?? data.planSlug;
     const plan = await tenantRepo.findPlan(planIdentifier);
@@ -66,12 +71,19 @@ export class TenantService {
 
     const normalizedEmail = data.officialEmail.trim().toLowerCase();
     const emailOwner = await tenantRepo.findByOfficialEmail(normalizedEmail);
-    if (emailOwner) throw new AppError("This official email is already registered", 400);
+    if (emailOwner)
+      throw new AppError("This official email is already registered", 400);
 
     // Password check (Admin user banane ke liye jaruri hai)
-    if (!data.password) throw new AppError("Admin password is required for tenant registration", 400);
+    if (!data.password)
+      throw new AppError(
+        "Admin password is required for tenant registration",
+        400,
+      );
 
-    const subdomain = await this.generateUniqueSubdomain(data.subdomain || data.name);
+    const subdomain = await this.generateUniqueSubdomain(
+      data.subdomain || data.name,
+    );
     const trialDays = data.trialDays ?? 14;
     const startDate = new Date();
     const endDate = new Date(startDate);
@@ -79,64 +91,88 @@ export class TenantService {
 
     const transaction = await sequelize.transaction();
     let tenant;
-     console.log(plan[data.billingCycle] , "this is price")
+    console.log(plan[data.billingCycle], "this is price");
     try {
       // 2. Create Tenant
-      tenant = await tenantRepo.create({
-        name: data.name.trim(),
-        organizationType: data.organizationType || "school",
-        officialEmail: normalizedEmail,
-        subdomain,
-        registrationNumber: data.registrationNumber?.trim() || null,
-        status: "onboarding",
-        metadata: mergeObjects(data.metadata, { provisioning: { status: "pending" } }),
-      }, { transaction });
+      tenant = await tenantRepo.create(
+        {
+          name: data.name.trim(),
+          organizationType: data.organizationType || "school",
+          officialEmail: normalizedEmail,
+          subdomain,
+          registrationNumber: data.registrationNumber?.trim() || null,
+          status: "onboarding",
+          metadata: mergeObjects(data.metadata, {
+            provisioning: { status: "pending" },
+          }),
+        },
+        { transaction },
+      );
 
       // 3. Create Subscription
-      await tenantRepo.createSubscription({
-        tenantId: tenant.id,
-        planId: plan.id,
-        status: "trialing",
-        billingCycle: data.billingCycle || "monthly",
-        startDate, endDate,
-         amountPaid:1,
-        nextBillingDate: endDate,
-      }, { transaction });
+      await tenantRepo.createSubscription(
+        {
+          tenantId: tenant.id,
+          planId: plan.id,
+          status: "trialing",
+          billingCycle: data.billingCycle || "monthly",
+          startDate,
+          endDate,
+          amountPaid: 1,
+          nextBillingDate: endDate,
+        },
+        { transaction },
+      );
 
       // 4. 🔥 Provision Default Roles & Permissions
       // Yeh method roles create karke return karega (Humein Administrator role ID chahiye)
-      const adminRole = await roleService.provisionDefaultTenantRoles(tenant.id, transaction);
-       console.log(adminRole , "this is adminrole ")
-      if (!adminRole) throw new AppError("Failed to provision administrator role", 500);
+      const adminRole = await roleService.provisionDefaultTenantRoles(
+        tenant.id,
+        transaction,
+      );
+      console.log(adminRole, "this is adminrole ");
+      if (!adminRole)
+        throw new AppError("Failed to provision administrator role", 500);
 
       // 5. 🔥 Create Admin User (Owner)
       // Hum createUser service ko reuse kar rahe hain
-      const adminUser = await userService.createUser({
-        email: normalizedEmail,
-        password: data.password,
-        firstName: data.adminFirstName || "Admin",
-        lastName: data.adminLastName || tenant.name,
-        userType: "staff", 
-        status: "active",
-        emailVerified: true,
-        tenantId: tenant.id,
-      }, { transaction });
+      const adminUser = await userService.createUser(
+        {
+          email: normalizedEmail,
+          password: data.password,
+          firstName: data.adminFirstName || "Admin",
+          lastName: data.adminLastName || tenant.name,
+          userType: "staff",
+          status: "active",
+          emailVerified: true,
+          tenantId: tenant.id,
+        },
+        { transaction },
+      );
 
+      console.log("Admin Role:", adminRole.id);
+
+      console.log("Admin User:", adminUser.id);
       // 6. 🔥 Assign Admin Role to User
-      await userRoleService.assignRoleToUser({
-        userId: adminUser.id,
-        roleId: adminRole.id,
-        tenantId: tenant.id,
-        assignedById: adminUser.id, // Self-assigned as first user
-      }, { transaction });
+      await userRoleService.assignRoleToUser(
+        {
+          userId: adminUser.id,
+          roleId: adminRole.id,
+          tenantId: tenant.id,
+          assignedById: adminUser.id, // Self-assigned as first user
+        },
+        { transaction },
+      );
 
+      console.log("ROLE ASSIGNED SUCCESSFULLY");
       // 7. Setup Provisioning Steps
       await tenantRepo.createProvisioningSteps(
         PROVISIONING_STEPS.map((stepKey) => ({
           tenantId: tenant.id,
-          stepKey, status: "pending",
+          stepKey,
+          status: "pending",
         })),
-        { transaction }
+        { transaction },
       );
 
       await transaction.commit();
@@ -162,14 +198,17 @@ export class TenantService {
   }
 
   async getTenantDetails(id) {
-    const [tenant, subscription, provisioningSteps, metricSnapshot] = await Promise.all([
-      tenantRepo.findById(id),
-      tenantRepo.findLatestSubscription(id),
-      tenantRepo.findProvisioningSteps(id),
-      tenantRepo.listWithMetrics({ id, page: 1, limit: 1 }),
-    ]);
+    const [tenant, subscription, provisioningSteps, metricSnapshot] =
+      await Promise.all([
+        tenantRepo.findById(id),
+        tenantRepo.findLatestSubscription(id),
+        tenantRepo.findProvisioningSteps(id),
+        tenantRepo.listWithMetrics({ id, page: 1, limit: 1 }),
+      ]);
 
-    const plan = subscription ? await tenantRepo.findPlanById(subscription.planId) : null;
+    const plan = subscription
+      ? await tenantRepo.findPlanById(subscription.planId)
+      : null;
     const metrics = metricSnapshot.data[0] || null;
 
     return this.formatTenantResponse({
@@ -184,22 +223,53 @@ export class TenantService {
   async updateProfile(id, updateData) {
     const tenant = await tenantRepo.findById(id);
 
-    if (updateData.officialEmail && updateData.officialEmail.trim().toLowerCase() !== tenant.officialEmail) {
-      const emailOwner = await tenantRepo.findByOfficialEmail(updateData.officialEmail.trim().toLowerCase());
+    if (
+      updateData.officialEmail &&
+      updateData.officialEmail.trim().toLowerCase() !== tenant.officialEmail
+    ) {
+      const emailOwner = await tenantRepo.findByOfficialEmail(
+        updateData.officialEmail.trim().toLowerCase(),
+      );
       if (emailOwner && emailOwner.id !== tenant.id) {
         throw new AppError("This official email is already registered", 400);
       }
     }
 
     await tenant.update({
-      ...(updateData.name !== undefined ? { name: updateData.name.trim() } : {}),
-      ...(updateData.officialEmail !== undefined ? { officialEmail: updateData.officialEmail.trim().toLowerCase() } : {}),
-      ...(updateData.registrationNumber !== undefined ? { registrationNumber: updateData.registrationNumber?.trim() || null } : {}),
-      ...(updateData.address !== undefined ? { address: mergeObjects(tenant.address, updateData.address) } : {}),
-      ...(updateData.contactInfo !== undefined ? { contactInfo: mergeObjects(tenant.contactInfo, updateData.contactInfo) } : {}),
-      ...(updateData.settings !== undefined ? { settings: mergeObjects(tenant.settings, updateData.settings) } : {}),
-      ...(updateData.customFields !== undefined ? { customFields: mergeObjects(tenant.customFields, updateData.customFields) } : {}),
-      ...(updateData.metadata !== undefined ? { metadata: mergeObjects(tenant.metadata, updateData.metadata) } : {}),
+      ...(updateData.name !== undefined
+        ? { name: updateData.name.trim() }
+        : {}),
+      ...(updateData.officialEmail !== undefined
+        ? { officialEmail: updateData.officialEmail.trim().toLowerCase() }
+        : {}),
+      ...(updateData.registrationNumber !== undefined
+        ? { registrationNumber: updateData.registrationNumber?.trim() || null }
+        : {}),
+      ...(updateData.address !== undefined
+        ? { address: mergeObjects(tenant.address, updateData.address) }
+        : {}),
+      ...(updateData.contactInfo !== undefined
+        ? {
+            contactInfo: mergeObjects(
+              tenant.contactInfo,
+              updateData.contactInfo,
+            ),
+          }
+        : {}),
+      ...(updateData.settings !== undefined
+        ? { settings: mergeObjects(tenant.settings, updateData.settings) }
+        : {}),
+      ...(updateData.customFields !== undefined
+        ? {
+            customFields: mergeObjects(
+              tenant.customFields,
+              updateData.customFields,
+            ),
+          }
+        : {}),
+      ...(updateData.metadata !== undefined
+        ? { metadata: mergeObjects(tenant.metadata, updateData.metadata) }
+        : {}),
     });
 
     return await this.getTenantDetails(id);
@@ -210,7 +280,10 @@ export class TenantService {
     const nextStatus = this.resolveTenantStatus(tenant.status, statusData);
 
     if (tenant.status === "archived" && nextStatus !== "archived") {
-      throw new AppError("Archived tenants cannot be reactivated through the status endpoint", 400);
+      throw new AppError(
+        "Archived tenants cannot be reactivated through the status endpoint",
+        400,
+      );
     }
 
     await tenant.update({
@@ -249,8 +322,22 @@ export class TenantService {
     const tenant = await tenantRepo.findById(id);
 
     await tenant.update({
-      ...(updateData.themeConfig !== undefined ? { themeConfig: mergeObjects(tenant.themeConfig, updateData.themeConfig) } : {}),
-      ...(updateData.brandingAssets !== undefined ? { brandingAssets: mergeObjects(tenant.brandingAssets, updateData.brandingAssets) } : {}),
+      ...(updateData.themeConfig !== undefined
+        ? {
+            themeConfig: mergeObjects(
+              tenant.themeConfig,
+              updateData.themeConfig,
+            ),
+          }
+        : {}),
+      ...(updateData.brandingAssets !== undefined
+        ? {
+            brandingAssets: mergeObjects(
+              tenant.brandingAssets,
+              updateData.brandingAssets,
+            ),
+          }
+        : {}),
     });
 
     return await this.getTenantDetails(id);
@@ -261,15 +348,27 @@ export class TenantService {
     const brandingAssets = { ...(tenant.brandingAssets || {}) };
 
     if (assets.logo) {
-      brandingAssets.logoUrl = await this.persistBrandingAsset(id, "logo", assets.logo);
+      brandingAssets.logoUrl = await this.persistBrandingAsset(
+        id,
+        "logo",
+        assets.logo,
+      );
     }
 
     if (assets.favicon) {
-      brandingAssets.faviconUrl = await this.persistBrandingAsset(id, "favicon", assets.favicon);
+      brandingAssets.faviconUrl = await this.persistBrandingAsset(
+        id,
+        "favicon",
+        assets.favicon,
+      );
     }
 
     if (assets.coverImage) {
-      brandingAssets.coverImageUrl = await this.persistBrandingAsset(id, "cover-image", assets.coverImage);
+      brandingAssets.coverImageUrl = await this.persistBrandingAsset(
+        id,
+        "cover-image",
+        assets.coverImage,
+      );
     }
 
     await tenant.update({ brandingAssets });
@@ -298,7 +397,9 @@ export class TenantService {
     const existingSteps = await tenantRepo.findProvisioningSteps(id);
     const stepsToRetry = payload.steps?.length
       ? payload.steps
-      : existingSteps.filter((step) => ["pending", "failed"].includes(step.status)).map((step) => step.stepKey);
+      : existingSteps
+          .filter((step) => ["pending", "failed"].includes(step.status))
+          .map((step) => step.stepKey);
 
     if (!stepsToRetry.length) {
       return await this.getProvisioningStatus(id);
@@ -310,7 +411,9 @@ export class TenantService {
 
   async generateUniqueSubdomain(sourceValue) {
     const baseSubdomain = slugify(sourceValue) || "tenant";
-    const existingSubdomains = new Set(await tenantRepo.findSubdomainsStartingWith(baseSubdomain));
+    const existingSubdomains = new Set(
+      await tenantRepo.findSubdomainsStartingWith(baseSubdomain),
+    );
 
     if (!existingSubdomains.has(baseSubdomain)) {
       return baseSubdomain;
@@ -368,7 +471,10 @@ export class TenantService {
   }
 
   async runProvisioningStep(tenant, stepKey) {
-    const existingStep = await tenantRepo.findProvisioningStep(tenant.id, stepKey);
+    const existingStep = await tenantRepo.findProvisioningStep(
+      tenant.id,
+      stepKey,
+    );
 
     await tenantRepo.updateProvisioningStep(tenant.id, stepKey, {
       status: "in_progress",
@@ -379,7 +485,10 @@ export class TenantService {
     });
 
     try {
-      const executionResult = await this.executeProvisioningStep(tenant, stepKey);
+      const executionResult = await this.executeProvisioningStep(
+        tenant,
+        stepKey,
+      );
 
       await tenantRepo.updateProvisioningStep(tenant.id, stepKey, {
         status: "completed",
@@ -417,8 +526,15 @@ export class TenantService {
 
   async executeProvisioningStep(tenant, stepKey) {
     if (stepKey === "schema_created") {
-      const tenantWorkspacePath = path.join(process.cwd(), "storage", "tenants", tenant.id);
-      await fs.mkdir(path.join(tenantWorkspacePath, "branding"), { recursive: true });
+      const tenantWorkspacePath = path.join(
+        process.cwd(),
+        "storage",
+        "tenants",
+        tenant.id,
+      );
+      await fs.mkdir(path.join(tenantWorkspacePath, "branding"), {
+        recursive: true,
+      });
 
       return {
         message: "Tenant workspace initialized",
@@ -494,7 +610,13 @@ export class TenantService {
       throw new AppError(assetPrefix + " file size exceeds the 5MB limit", 400);
     }
 
-    const brandingDirectory = path.join(process.cwd(), "storage", "tenants", tenantId, "branding");
+    const brandingDirectory = path.join(
+      process.cwd(),
+      "storage",
+      "tenants",
+      tenantId,
+      "branding",
+    );
 
     await fs.mkdir(brandingDirectory, { recursive: true });
 
@@ -505,7 +627,10 @@ export class TenantService {
   }
 
   resolveMimeType(assetPayload) {
-    if (assetPayload.mimeType && ALLOWED_IMAGE_MIME_TYPES[assetPayload.mimeType]) {
+    if (
+      assetPayload.mimeType &&
+      ALLOWED_IMAGE_MIME_TYPES[assetPayload.mimeType]
+    ) {
       return assetPayload.mimeType;
     }
 
@@ -515,7 +640,9 @@ export class TenantService {
     }
 
     const extension = assetPayload.fileName?.split(".").pop()?.toLowerCase();
-    const matchedMimeType = Object.entries(ALLOWED_IMAGE_MIME_TYPES).find(([, ext]) => ext === extension)?.[0];
+    const matchedMimeType = Object.entries(ALLOWED_IMAGE_MIME_TYPES).find(
+      ([, ext]) => ext === extension,
+    )?.[0];
 
     if (matchedMimeType) {
       return matchedMimeType;
@@ -559,17 +686,27 @@ export class TenantService {
       {
         counts: {},
         steps: [],
-      }
+      },
     );
 
     return {
       ...summary,
-      isProvisioned: summary.steps.length > 0 && summary.steps.every((step) => step.status === "completed"),
-      canRetry: summary.steps.some((step) => ["failed", "pending"].includes(step.status)),
+      isProvisioned:
+        summary.steps.length > 0 &&
+        summary.steps.every((step) => step.status === "completed"),
+      canRetry: summary.steps.some((step) =>
+        ["failed", "pending"].includes(step.status),
+      ),
     };
   }
 
-  formatTenantResponse({ tenant, subscription, plan, provisioningSteps, metrics }) {
+  formatTenantResponse({
+    tenant,
+    subscription,
+    plan,
+    provisioningSteps,
+    metrics,
+  }) {
     return {
       id: tenant.id,
       name: tenant.name,

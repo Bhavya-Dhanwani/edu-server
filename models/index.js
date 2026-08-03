@@ -54,6 +54,8 @@ import { FeeStructureItem } from "./FeeStructure/FeeStructureItem.js";
 import { Attendance } from "./Attendance.js";
 import { AttendancePeriod } from "./AttendancePeriod.js";
 
+import TenantProvisioningStep from "./TenantProvisioningStep.js";
+
 // ==========================================
 // 1. TENANT & BILLING ASSOCIATIONS
 // ==========================================
@@ -245,17 +247,29 @@ FeeStructureItem.belongsTo(FeeHead, { foreignKey: "feeHeadId", as: "feeHead" });
 // 6. ATTENDANCE & ATTENDANCE PERIOD
 // ==========================================
 // Attendance Relationships
-Student.hasMany(Attendance, { foreignKey: "studentId", as: "attendanceRecords" });
+Student.hasMany(Attendance, {
+  foreignKey: "studentId",
+  as: "attendanceRecords",
+});
 Attendance.belongsTo(Student, { foreignKey: "studentId", as: "student" });
 Attendance.belongsTo(Section, { foreignKey: "sectionId", as: "section" });
-Attendance.belongsTo(AcademicYear, { foreignKey: "academicYearId", as: "academicYear" });
+Attendance.belongsTo(AcademicYear, {
+  foreignKey: "academicYearId",
+  as: "academicYear",
+});
 Attendance.belongsTo(User, { foreignKey: "markedById", as: "markedBy" });
 Attendance.belongsTo(User, { foreignKey: "correctedById", as: "correctedBy" });
 
 // AttendancePeriod Relationships
-Student.hasMany(AttendancePeriod, { foreignKey: "studentId", as: "periodAttendanceRecords" });
+Student.hasMany(AttendancePeriod, {
+  foreignKey: "studentId",
+  as: "periodAttendanceRecords",
+});
 AttendancePeriod.belongsTo(Student, { foreignKey: "studentId", as: "student" });
-AttendancePeriod.belongsTo(TimetableSlot, { foreignKey: "timetableSlotId", as: "timetableSlot" });
+AttendancePeriod.belongsTo(TimetableSlot, {
+  foreignKey: "timetableSlotId",
+  as: "timetableSlot",
+});
 AttendancePeriod.belongsTo(User, { foreignKey: "markedById", as: "markedBy" });
 
 // ==========================================
@@ -354,4 +368,5 @@ export {
   FeeHead,
   FeeStructure,
   FeeStructureItem,
+  TenantProvisioningStep, 
 };

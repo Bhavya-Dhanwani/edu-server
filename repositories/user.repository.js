@@ -1,5 +1,5 @@
 import { User } from "../models/index.js";
-import { BaseRepository } from "./base.repository.js";
+  import { BaseRepository } from "./base.repository.js";
 import { AppError } from "../utils/AppError.js";
 
 export class UserRepository extends BaseRepository {
@@ -10,7 +10,7 @@ export class UserRepository extends BaseRepository {
   async findByEmail(email, tenantId = null) {
     const where = { email: email.toLowerCase().trim() };
     if (tenantId) where.tenantId = tenantId;
-    
+
     return await this.model.scope("withPassword").findOne({ where });
   }
 
@@ -83,7 +83,12 @@ export class UserRepository extends BaseRepository {
   }
 
   async updateStatus(id, tenantId, status) {
-    const validStatuses = ["active", "inactive", "suspended", "pending_verification"];
+    const validStatuses = [
+      "active",
+      "inactive",
+      "suspended",
+      "pending_verification",
+    ];
     if (!validStatuses.includes(status)) {
       throw new AppError("Invalid user status", 400);
     }
@@ -106,32 +111,46 @@ export class UserRepository extends BaseRepository {
   }
 
   async findByIdGlobal(id) {
-    const defaultInclude = [
-      {
-        association: "roles",
-        attributes: ["id", "name", "roleType"],
-        through: { attributes: [] },
-        include: [
-          {
-            association: "permissions",
-            attributes: ["id", "name", "action", "resource", "module", "description"],
-            through: { attributes: [] },
-          },
-        ],
-      },
-      {
-        association: "organization",
-        attributes: ["id", "name", "organizationType", "officialEmail", "subdomain", "settings"],
-      },
-    ];
-
     const user = await this.model.findOne({
       where: { id },
-      attributes: { exclude: ["password"] },
-      include: defaultInclude,
-    });
+      attributes: {
+        exclude: ["password"],
+      },
+      include: [
+        {
+          association: "organization",
+          attributes: [
+            "id",
+            "name",
+            "organizationType",
+            "officialEmail",
+            "subdomain",
+            "settings",
+          ],
+        },
+        {
+          association: "roles",
+          attributes: ["id", "name", "roleType"],
+          through: {
+            attributes: [],
+          },
+          include: [
+            {
+              association: "permissions",
+              attributes: ["id", "name", "action", "resource", "module"],
+              through: {
+                attributes: [],
+              },
+            },
+          ],
+        },
+      ],
+    });``
 
-    if (!user) throw new AppError("User not found", 404);
+    if (!user) {
+      throw new AppError("User not found", 404);
+    }
+
     return user;
   }
 

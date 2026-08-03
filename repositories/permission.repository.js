@@ -21,4 +21,14 @@ export class PermissionRepository extends BaseRepository {
       order: [["name", "ASC"]],
     });
   }
+  async findByNames(names) {
+    return await this.model.findAll({
+      where: {
+        name: {
+          [Op.in]: names,
+        },
+      },
+      order: [["name", "ASC"]],
+    });
+  }
 }

@@ -9,7 +9,7 @@ const userRepo = new UserRepository();
 const userRoleRepo = new UserRoleRepository();
 
 export class UserService {
- async createUser(payload, options = {}) {
+  async createUser(payload, options = {}) {
     const email = payload.email?.toLowerCase().trim();
 
     // 1. Check if email already exists
@@ -60,7 +60,7 @@ export class UserService {
       }
       throw error;
     }
-}
+  }
 
   async getAllUsers(tenantId, filter = {}) {
     const users = await userRepo.findAllWithAssociations(tenantId, filter);
@@ -108,7 +108,7 @@ export class UserService {
 
     await userRepo.update(userId, tenantId, updateData);
     const updated = await userRepo.findByIdWithAssociations(userId, tenantId);
-    return this.formatUserResponse(updated); 
+    return this.formatUserResponse(updated);
   }
 
   async updateUserStatus(userId, tenantId, status) {
@@ -122,7 +122,8 @@ export class UserService {
       throw new AppError("Invalid status value", 400);
     }
 
-    const user = await userRepo.updateStatus(userId, tenantId, status);j
+    const user = await userRepo.updateStatus(userId, tenantId, status);
+    j;
     return this.formatUserResponse(user);
   }
 
@@ -156,7 +157,7 @@ export class UserService {
 
   async loginByEmail(email, password) {
     const trimmedEmail = email?.toLowerCase().trim();
-    
+
     if (!trimmedEmail) {
       throw new AppError("Email is required", 400);
     }
@@ -172,7 +173,10 @@ export class UserService {
     }
 
     // Verify password with bcrypt
-    const isPasswordValid = await BcryptHelper.comparePassword(password, user.password);
+    const isPasswordValid = await BcryptHelper.comparePassword(
+      password,
+      user.password,
+    );
     if (!isPasswordValid) {
       throw new AppError("Invalid email or password", 401);
     }
@@ -182,13 +186,21 @@ export class UserService {
 
     // Fetch user with associations for complete profile (global search)
     const userWithAssociations = await userRepo.findByIdGlobal(user.id);
+
+    console.log("User Roles:", userWithAssociations.roles);
+
     const userResponse = this.formatUserResponse(userWithAssociations);
-    
+
+    console.log("Formatted Roles:", userResponse.roles);
+
+    const firstRoleId = userResponse.roles?.[0]?.id ?? null;
+
+    console.log("First Role ID:", firstRoleId);
     // Generate JWT token
     const token = JwtHelper.generateToken({
       id: userWithAssociations.id,
       email: userWithAssociations.email,
-      roleId:userResponse.roles[0].id,
+      roleId: firstRoleId,
       userType: userWithAssociations.userType,
       tenantId: userWithAssociations.tenantId,
     });
@@ -201,7 +213,7 @@ export class UserService {
 
   formatUserResponse(user) {
     // Format roles with permissions
-    const formattedRoles = (user.roles || []).map(role => ({
+    const formattedRoles = (user.roles || []).map((role) => ({
       id: role.id,
       name: role.name,
       roleType: role.roleType,
@@ -222,14 +234,16 @@ export class UserService {
       createdAt: user.createdAt,
       updatedAt: user.updatedAt,
       roles: formattedRoles,
-      tenant: user.organization ? {
-        id: user.organization.id,
-        name: user.organization.name,
-        organizationType: user.organization.organizationType,
-        officialEmail: user.organization.officialEmail,
-        subdomain: user.organization.subdomain,
-        settings: user.organization.settings,
-      } : null,
+      tenant: user.organization
+        ? {
+            id: user.organization.id,
+            name: user.organization.name,
+            organizationType: user.organization.organizationType,
+            officialEmail: user.organization.officialEmail,
+            subdomain: user.organization.subdomain,
+            settings: user.organization.settings,
+          }
+        : null,
     };
   }
 }

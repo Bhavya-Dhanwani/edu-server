@@ -279,6 +279,16 @@ export class StudentService {
     return this.formatStudentResponse(studentData);
   }
 
+  async getStudentByUserId(userId, tenantId) {
+    const student = await studentRepo.findByUserId(userId, tenantId);
+    if (!student) {
+      throw new AppError("Student profile not found for this user", 404);
+    }
+    const fullStudent = await studentRepo.findWithDetails(student.id, tenantId);
+    const studentData = fullStudent.get ? fullStudent.get({ plain: true }) : fullStudent;
+    return this.formatStudentResponse(studentData);
+  }
+
   async updateStudent(id, tenantId, updateData) {
     if (updateData.userId !== undefined) {
       throw new AppError("userId cannot be updated", 400);
