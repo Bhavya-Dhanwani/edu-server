@@ -26,7 +26,11 @@ router
     listTenantsValidator,
     ctrl.getAll,
   )
-  .post(createTenantValidator, ctrl.create);
+  .post(
+      
+    createTenantValidator,
+    ctrl.create,
+  );
 
 router
   .route("/:id")

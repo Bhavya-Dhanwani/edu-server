@@ -1,6 +1,5 @@
 import { User } from "../models/index.js";
-import { UserRole } from "../models/UserRole.js";
-import { BaseRepository } from "./base.repository.js";
+  import { BaseRepository } from "./base.repository.js";
 import { AppError } from "../utils/AppError.js";
 
 export class UserRepository extends BaseRepository {
@@ -11,7 +10,7 @@ export class UserRepository extends BaseRepository {
   async findByEmail(email, tenantId = null) {
     const where = { email: email.toLowerCase().trim() };
     if (tenantId) where.tenantId = tenantId;
-    
+
     return await this.model.scope("withPassword").findOne({ where });
   }
 
@@ -84,7 +83,12 @@ export class UserRepository extends BaseRepository {
   }
 
   async updateStatus(id, tenantId, status) {
-    const validStatuses = ["active", "inactive", "suspended", "pending_verification"];
+    const validStatuses = [
+      "active",
+      "inactive",
+      "suspended",
+      "pending_verification",
+    ];
     if (!validStatuses.includes(status)) {
       throw new AppError("Invalid user status", 400);
     }
@@ -109,29 +113,43 @@ export class UserRepository extends BaseRepository {
   async findByIdGlobal(id) {
     const user = await this.model.findOne({
       where: { id },
-      attributes: { exclude: ["password"] },
+      attributes: {
+        exclude: ["password"],
+      },
       include: [
         {
           association: "organization",
-          attributes: ["id", "name", "organizationType", "officialEmail", "subdomain", "settings"],
+          attributes: [
+            "id",
+            "name",
+            "organizationType",
+            "officialEmail",
+            "subdomain",
+            "settings",
+          ],
+        },
+        {
+          association: "roles",
+          attributes: ["id", "name", "roleType"],
+          through: {
+            attributes: [],
+          },
+          include: [
+            {
+              association: "permissions",
+              attributes: ["id", "name", "action", "resource", "module"],
+              through: {
+                attributes: [],
+              },
+            },
+          ],
         },
       ],
-    });
+    });``
 
-    if (!user) throw new AppError("User not found", 404);
-
-    const assignments = await UserRole.findAll({
-      where: { userId: id },
-      attributes: ["roleId"],
-      raw: true,
-    });
-
-    user.dataValues.roles = assignments.map((assignment) => ({
-      id: assignment.roleId,
-      name: null,
-      roleType: null,
-      permissions: [],
-    }));
+    if (!user) {
+      throw new AppError("User not found", 404);
+    }
 
     return user;
   }

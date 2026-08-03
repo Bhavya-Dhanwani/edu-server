@@ -96,8 +96,9 @@ export class RoleService {
         },
         { transaction },
       );
-
+      console.log("Attaching", permissionIds.length, "permissions");
       await roleRepo.attachPermissions(role.id, permissionIds, { transaction });
+      console.log("Permissions attached successfully");
 
       // 🔥 Sirf tabhi commit karo agar transaction isi function ne banayi thi
       if (localTransaction) {
