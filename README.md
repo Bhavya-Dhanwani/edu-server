@@ -1,652 +1,783 @@
 # edu-server
 
-`edu-server` is a Node.js/Express backend for a multi-tenant education SaaS product. The project is designed to support schools first, while keeping the tenant model flexible enough for colleges, universities, coaching centers, preschools, and similar organizations.
+A multi-tenant education SaaS backend built with **Node.js, Express 5, Sequelize 6, and PostgreSQL**.
 
-The codebase is organized around a classic layered backend structure:
+This repository is open-sourced as a collaborative learning project for students. The core foundation — multi-tenancy, RBAC, academic structure, and student/staff profiles — is already built. Your job is to implement the pending features listed in this README.
 
-- `router` handles HTTP route definitions
-- `controllers` translate HTTP requests into service calls
-- `services` contain business rules
-- `repositories` encapsulate database access
-- `models` define the Sequelize schema and associations
-- `middlewares` contain validation and error handling helpers
-
-## Product Intent
-
-The current data model shows a platform meant to manage:
-
-- tenant onboarding and subscription billing
-- users, roles, and permissions
-- student, staff, and guardian records
-- academic years, classes, sections, and subjects
-- student enrollments
-- teacher-subject assignments
-- rooms and timetable scheduling
-
-In short, this is shaping up to be a school-management SaaS backend with a strong multi-tenant foundation and room to expand into a broader education ERP.
+---
 
 ## Tech Stack
 
-- Runtime: Node.js
-- Framework: Express 5
-- ORM: Sequelize 6
-- Database: PostgreSQL
-- Configuration: `dotenv`
-- Security and API middleware: `helmet`, `cors`, `morgan`
-- Development tooling: `nodemon`
-
-## Application Startup Flow
-
-### `index.js`
-
-The entrypoint:
-
-1. loads environment variables
-2. imports the Express app
-3. connects to PostgreSQL through Sequelize
-4. syncs models with `sequelize.sync({ alter: true })` in development
-5. starts the HTTP server
-6. handles graceful shutdown on `SIGTERM`
-
-### `config/db.js`
-
-Database setup expects a `DATABASE_URL`. The Sequelize instance is configured with:
-
-- PostgreSQL dialect
-- SSL enabled
-- connection pool settings
-- retry matching for common connection failures
-- global model defaults:
-  - `underscored: true`
-  - `timestamps: true`
-  - `paranoid: true`
-
-## Express App Flow
-
-### `app.js`
-
-The Express app currently includes:
-
-- `helmet()` for basic security headers
-- `cors()` with configurable origin
-- `morgan('dev')` for logging
-- JSON and URL-encoded body parsing
-- `GET /health` for health checks
-- a 404 fallback
-- an inline error handler
-
-Important current-state note:
-
-- feature routers are not mounted in `app.js` yet
-- the shared error middleware in `middlewares/error/error.middleware.js` is not wired into the app
-
-That means the project has the beginnings of a modular architecture, but the final request wiring is still incomplete.
-
-## Multi-Tenancy Design
-
-Multi-tenancy is one of the core ideas in this project.
-
-### `models/withTenant.js`
-
-The helper injects these common fields into tenant-owned models:
-
-- `tenantId`
-- `customFields`
-- `metadata`
-
-This is intended to enforce tenant isolation while still allowing per-tenant customization and loosely structured extension data.
-
-### Design pattern used
-
-Most business entities are meant to be tenant-scoped:
-
-- users
-- roles
-- staff
-- students
-- guardians
-- academic structures
-- timetable data
-
-The `User` and `Role` models deliberately relax strict tenant ownership in some cases:
-
-- `User` allows `tenantId = null` for platform-level `super_admin`
-- `Role` allows `tenantId = null` for global system roles
-
-This is a sensible SaaS pattern: global platform actors can exist outside a single tenant, while most operational records remain tenant-bound.
-
-## Domain Model Overview
-
-## 1. Tenant and Billing
-
-### `Tenant`
-
-Represents an organization using the platform.
-
-Key fields:
-
-- `organizationType`: school, college, university, coaching, preschool, other
-- `name`
-- `officialEmail`
-- `subdomain`
-- `settings` JSONB
-- `themeConfig` JSONB
-- `registrationNumber`
-- `status`: onboarding, active, suspended, archived
-- `customFields`
-- `metadata`
-
-This model is the heart of the platform. It stores organization identity, lifecycle state, and per-tenant configuration.
-
-### `Plan`
-
-Represents a subscription plan offered by the platform.
-
-Key fields:
-
-- `name`
-- `slug`
-- `description`
-- `monthlyPrice`
-- `yearlyPrice`
-- `currency`
-- `features` JSONB
-- `isActive`
-
-The `features` JSONB suggests the platform intends feature-based entitlements such as storage limits or optional modules.
-
-### `Subscription`
-
-Represents a tenant's active or historical subscription.
-
-Key fields:
-
-- tenant reference
-- plan reference
-- `status`
-- `billingCycle`
-- `startDate`
-- `endDate`
-- `nextBillingDate`
-- `amountPaid`
-
-Important note:
-
-- the association layer uses `tenantId`
-- the model currently defines `schoolId`
-
-So the billing design is clear, but the implementation still needs consistency updates.
-
-## 2. Authentication and RBAC
-
-### `User`
-
-Represents a platform or tenant user.
-
-Key fields:
-
-- `cognitoSub`
-- `email`
-- `firstName`
-- `lastName`
-- `phone`
-- `avatarUrl`
-- `userType`
-- `status`
-- `emailVerified`
-- `twoFactorEnabled`
-- `lastLoginAt`
-- `preferences`
-
-Supported `userType` values:
-
-- `super_admin`
-- `org_admin`
-- `staff`
-- `teacher`
-- `student`
-- `parent`
-- `vendor`
-
-This model mixes authentication identity, profile data, and user lifecycle state.
-
-### `Role`
-
-Represents a named role, either global or tenant-specific.
-
-Key fields:
-
-- `name`
-- `slug`
-- `description`
-- `isSystem`
-- `hierarchyLevel`
-
-`hierarchyLevel` hints at future permission escalation rules, such as preventing lower-level users from managing higher-level ones.
-
-### `Permission`
-
-Represents a fine-grained permission.
-
-Key fields:
-
-- `name`
-- `action`
-- `resource`
-- `module`
-- `description`
-
-The intended naming style is action/resource oriented, for example `read:students` or `manage:fees`.
-
-### `UserRole`
-
-Join table for assigning roles to users.
-
-Key fields:
-
-- `userId`
-- `roleId`
-- `academicYearId`
-- `assignedById`
-- `assignedAt`
-- `expiresAt`
-
-This is more advanced than a basic RBAC join table because it supports academic-year-scoped assignments and expiring role grants.
-
-### `RolePermission`
-
-Join table between roles and permissions.
-
-Key fields:
-
-- `roleId`
-- `permissionId`
-
-Together, `User`, `Role`, `Permission`, `UserRole`, and `RolePermission` form the platform's authorization layer.
-
-## 3. Academic Structure
-
-### `AcademicYear`
-
-Represents an academic session for a tenant.
-
-Key fields:
-
-- `name`
-- `startDate`
-- `endDate`
-- `isCurrent`
-- `isLocked`
-
-### `Class`
-
-Represents an academic level or class grouping.
-
-Key fields:
-
-- `name`
-- `numericLevel`
-- `description`
-
-### `Section`
-
-Represents a subdivision of a class in a given academic year.
-
-Key fields:
-
-- `classId`
-- `academicYearId`
-- `name`
-- `capacity`
-- `classTeacherId`
-
-### `Subject`
-
-Represents a subject taught to a class.
-
-Key fields:
-
-- `classId`
-- `name`
-- `code`
-- `subjectType`
-- `isElective`
-- `weeklyPeriods`
-
-Together these models define the academic container structure:
-
-- tenant -> academic year
-- class -> section
-- class -> subject
-
-## 4. Student, Staff, and Guardian Profiles
-
-### `Student`
-
-Represents a student profile, optionally linked to a `User`.
-
-Key fields include:
-
-- `userId`
-- `admissionNumber`
-- `rollNumber`
-- name fields
-- `dateOfBirth`
-- `gender`
-- `bloodGroup`
-- `nationality`
-- `religion`
-- `caste`
-- `category`
-- `aadharNumber`
-- `photoUrl`
-- `enrollmentDate`
-- `previousSchool`
-- `previousClass`
-- `tcNumber`
-- `siblingId`
-- `isStaffWard`
-- `status`
-- `transportRequired`
-- `hostelRequired`
-- `medicalConditions`
-- emergency contact data
-- address data
-
-This is a rich school ERP student profile model and suggests the backend is intended to support admissions, identity, transport, hostel, and compliance workflows.
-
-### `Staff`
-
-Represents staff profile data linked to a `User`.
-
-Key fields:
-
-- `userId`
-- `employeeCode`
-- `staffType`
-- `designation`
-- `department`
-- `joiningDate`
-- `employmentStatus`
-- `panNumber`
-- `bankAccountNumber`
-
-### `Guardian`
-
-Represents a parent or guardian entity, optionally linked to a `User`.
-
-Key fields:
-
-- `userId`
-- `relation`
-- `phone`
-- `occupation`
-- `isPrimaryContact`
-
-### `StudentGuardianMap`
-
-Join table between students and guardians.
-
-Key fields:
-
-- `studentId`
-- `guardianId`
-- `relationType`
-- `isPrimary`
-- `canPickup`
-
-This structure supports many-to-many family relationships, which is useful when one guardian is linked to multiple students or a student has multiple guardians.
-
-## 5. Enrollment and Teaching Assignment
-
-### `StudentSectionEnrollment`
-
-Represents student placement into a section for a specific academic year.
-
-Key fields:
-
-- `studentId`
-- `sectionId`
-- `academicYearId`
-- `rollNumber`
-- `isCurrent`
-- `enrollmentStatus`
-
-This is a good design choice because it preserves enrollment history instead of storing only a single "current section" on the student record.
-
-### `TeacherSubjectAssignment`
-
-Represents teacher allocation to a subject and section for an academic year.
-
-Key fields:
-
-- `staffId`
-- `subjectId`
-- `sectionId`
-- `academicYearId`
-- `isPrimaryTeacher`
-
-This model is the foundation for timetable generation, workload planning, and subject ownership.
-
-## 6. Infrastructure and Scheduling
-
-### `Room`
-
-Represents a physical space.
-
-Key fields:
-
-- `name`
-- `roomType`
-- `capacity`
-
-### `Timetable`
-
-Represents a timetable container for a section and academic year.
-
-Key fields:
-
-- `sectionId`
-- `academicYearId`
-- `name`
-- `status`
-
-### `TimetableSlot`
-
-Represents a single period in a timetable.
-
-Key fields:
-
-- `timetableId`
-- `subjectId`
-- `teacherId`
-- `roomId`
-- `dayOfWeek`
-- `periodNumber`
-- `startTime`
-- `endTime`
-
-The unique indexes on teacher/time and room/time show that timetable collision prevention is already part of the design.
-
-## Associations
-
-Based on `models/index.js`, the intended relationships are:
-
-- `Tenant` has many `Subscription`
-- `Plan` has many `Subscription`
-- `Tenant` has many `User`
-- `User` belongs to many `Role` through `UserRole`
-- `Role` belongs to many `Permission` through `RolePermission`
-- `User` has one `Student`
-- `User` has one `Staff`
-- `Tenant` has many `AcademicYear`
-- `Class` has many `Section`
-- `Student` has many `StudentSectionEnrollment`
-- `Student` belongs to many `Guardian` through `StudentGuardianMap`
-- `TeacherSubjectAssignment` belongs to `Staff`
-
-There are still some missing or incomplete associations that would likely be needed later, such as:
-
-- section -> academic year and tenant aliases
-- subject -> class association aliases
-- timetable -> slots
-- timetable slot -> room, subject, teacher
-- teacher subject assignment -> subject, section, academic year
-
-## API Layer
-
-The only concrete feature route currently present is for tenant management.
-
-### `router/tenant.router.js`
-
-Defined routes:
-
-- `POST /register`
-- `GET /:id`
-- `PATCH /:id`
-- `DELETE /:id`
-
-### Request flow
-
-The tenant feature follows this chain:
-
-1. router
-2. validator
-3. controller
-4. service
-5. repository
-6. Sequelize model
-
-This is a clean foundation for scaling more features later.
-
-### `middlewares/validators/tenant.validator.js`
-
-The tenant validator currently validates:
-
-- `name`
-- `organizationType`
-- `officialEmail`
-- `subdomain`
-- `registrationNumber`
-- `settings`
-- `themeConfig`
-- `status`
-- `customFields`
-- `metadata`
-
-However, the project currently imports `express-validator` without declaring it in `package.json`, so validation is designed but not yet install-ready.
-
-## Base Abstractions
-
-The codebase already includes generic abstractions:
-
-- `BaseRepository`
-- `BaseService`
-- `BaseController`
-
-These are intended for tenant-scoped CRUD patterns, where `req.tenantId` is injected and propagated through the stack.
-
-This is a good direction for the project because most education entities are tenant-owned and share common CRUD needs.
-
-## Error Handling
-
-There are two error handling styles present right now:
-
-- inline handler inside `app.js`
-- reusable `globalErrorHandler` in `middlewares/error/error.middleware.js`
-
-The reusable one is the better long-term direction, but it is not currently connected to the app.
-
-`AppError` and `catchAsync` are already in place, which means the project is moving toward a consistent operational error strategy.
+| Layer | Technology |
+|---|---|
+| Runtime | Node.js |
+| Framework | Express 5 |
+| ORM | Sequelize 6 |
+| Database | PostgreSQL |
+| Auth | AWS Cognito (cognitoSub on User) |
+| Security | helmet, cors, morgan |
+
+---
 
 ## Project Structure
 
-```text
+```
 edu-server/
-  app.js
-  index.js
-  config/
-    db.js
-  controllers/
-  middlewares/
-    error/
-    validators/
-  models/
-    Academic/
-  repositories/
-  router/
-  services/
-  utils/
+├── app.js                        # Express app setup
+├── index.js                      # Entry point — DB connect, sync, server start
+├── config/
+│   └── db.js                     # Sequelize instance (PostgreSQL + SSL + pool)
+├── models/
+│   ├── index.js                  # All model imports + associations
+│   ├── withTenant.js             # Shared tenant field injector
+│   ├── Tenant.js
+│   ├── Plan.js
+│   ├── Subscription.js
+│   ├── User.js
+│   ├── Role.js                   # type: platform | admin | staff | portal
+│   ├── Permission.js
+│   ├── RolePermission.js
+│   ├── UserRole.js
+│   ├── Academic/
+│   │   ├── AcademicYear.js
+│   │   ├── Class.js
+│   │   ├── Section.js
+│   │   ├── Subject.js
+│   │   ├── Room.js
+│   │   ├── Timetable.js
+│   │   └── TimetableSlot.js
+│   ├── Student.js
+│   ├── Staff.js
+│   ├── Guardian.js
+│   ├── StudentGuardianMap.js
+│   ├── StudentSectionEnrollment.js
+│   └── TeacherSubjectAssignment.js
+├── controllers/
+│   ├── base.controller.js
+│   └── tenant.controller.js
+├── services/
+│   └── tenant.service.js
+├── repositories/
+│   ├── base.repository.js
+│   └── tenant.repository.js
+├── router/
+│   └── tenant.router.js
+├── middlewares/
+│   ├── error/
+│   │   └── error.middleware.js   # globalErrorHandler — NOT yet wired in app.js
+│   └── validators/
+│       └── tenant.validator.js
+└── utils/
+    └── model-helper.js           # withTenant() helper
 ```
 
-## Current Strengths
+---
 
-- strong multi-tenant intent in the schema design
-- clear separation between router, controller, service, and repository layers
-- rich education domain modeling
-- flexible JSONB usage for tenant settings and feature configuration
-- soft-delete support through Sequelize paranoid mode
-- thoughtful indexing in several models
-- support for both tenant-level and global platform actors
+## Multi-Tenancy Design
 
-## Current Gaps and Inconsistencies
+Every business model is scoped to a tenant via `withTenant()`:
 
-This section reflects the code exactly as it exists today.
+```js
+// utils/model-helper.js
+export const withTenant = (fields) => ({
+  ...fields,
+  tenantId: {
+    type: DataTypes.UUID,
+    allowNull: false,           // overridden to true on Role and User
+    references: { model: "tenants", key: "id" },
+  },
+  customFields: { type: DataTypes.JSONB, defaultValue: {} },
+  metadata:     { type: DataTypes.JSONB, defaultValue: {} },
+});
+```
 
-### Wiring gaps
+**Two deliberate exceptions:**
 
-- `app.js` does not currently mount the tenant router
-- `app.js` does not use the shared `globalErrorHandler`
-- there is no visible middleware that sets `req.tenantId`
+- `User.tenantId` → nullable (super_admin has no school)
+- `Role.tenantId` → nullable (platform-level system roles)
 
-### Import and path issues
+---
 
-- several models import `../utils/model-helper.js`, but that file does not exist
-- the actual helper present is `models/withTenant.js`
-- some academic models import `../../config/db` without the `.js` extension
-- `router/tenant.router.js` imports modules without `.js` extensions
-- `controllers/base.controller.js` uses `catchAsync` without importing it
+## Role System & Portal Routing
 
-### Model-level consistency issues
+Roles have a `type` field that determines which portal a user can access:
 
-- `Subscription` uses `schoolId` while associations expect `tenantId`
-- `models/index.js` exports `Subject` but does not import it
-- several academic models use `DataTypes` without importing it
-- `Students.js` is incomplete or broken:
-  - missing `DataTypes` import
-  - inconsistent helper import path
-  - references `tenantIndex`, which is not defined in the repository
-  - does not export a default model even though `models/index.js` imports one
+| `type` | Portal | Who |
+|---|---|---|
+| `platform` | `/platform/*` | Super admins (SaaS team) |
+| `admin` | `/admin/*` | School owner, principal |
+| `staff` | `/staff/*` | Teachers, HR, accountant |
+| `portal` | `/portal/*` | Students, parents |
 
-### Dependency issues
+On login the frontend reads `role.type` from the JWT and redirects accordingly. Each portal renders its own sidebar and only exposes permitted routes.
 
-- `express-validator` is used but not listed in `package.json`
+---
 
-These issues do not erase the architecture. They just mean the project is still in a build-out stage rather than a fully runnable production baseline.
+## What Is Already Built
 
-## What This Project Already Tells Us
+### Foundation (complete)
+- [x] Multi-tenant model with `withTenant()` helper
+- [x] Tenant CRUD — `POST /register`, `GET /:id`, `PATCH /:id`, `DELETE /:id`
+- [x] Plan and Subscription models
+- [x] Base abstractions — `BaseRepository`, `BaseService`, `BaseController`
+- [x] `AppError` + `catchAsync` error utilities
+- [x] `globalErrorHandler` middleware (needs wiring)
 
-Even in its unfinished state, the project communicates a clear product direction:
+### Auth & RBAC (models done, routes pending)
+- [x] User model with `cognitoSub`, `userType`, `status`
+- [x] Role model with `type` ENUM and `hierarchyLevel`
+- [x] Permission model (`action:resource` format)
+- [x] `UserRole` join table (academic-year-scoped, expiry support)
+- [x] `RolePermission` join table
 
-- platform-first multi-tenancy
-- school operations and academic management
-- RBAC and tenant-customizable configuration
-- billing-aware SaaS architecture
-- readiness for future modules like transport, hostel, exams, LMS, and reporting
+### Academic Structure (models done, routes pending)
+- [x] AcademicYear
+- [x] Class, Section, Subject
+- [x] Room, Timetable, TimetableSlot (collision indexes in place)
+- [x] StudentSectionEnrollment
+- [x] TeacherSubjectAssignment
 
-## Recommended Next Steps
+### People (models done, routes pending)
+- [x] Student profile (full ERP fields)
+- [x] Staff profile (payroll fields present)
+- [x] Guardian + StudentGuardianMap
 
-If you continue building this codebase, the highest-value next steps would be:
+---
 
-1. fix import paths and missing exports so the model layer boots cleanly
-2. standardize `tenantId` usage across all tenant-owned models
-3. mount routers in `app.js`
-4. wire `globalErrorHandler` and request validation result handling
-5. add a tenant-resolution middleware to populate `req.tenantId`
-6. add the missing dependencies such as `express-validator`
-7. complete association coverage for academic and timetable models
-8. add migrations instead of relying on `sync({ alter: true })` for long-term stability
+## Known Wiring Issues (Fix These First)
 
-## Summary
+Before picking a feature, fix these so the project boots cleanly:
 
-This repository is a promising foundation for a multi-tenant school management SaaS backend. The architecture is already pointing in the right direction: layered services, tenant-aware models, RBAC, academic entities, and infrastructure scheduling. The main thing it needs now is consistency and wiring completion so the strong design becomes an executable system.
+```
+1. app.js          → mount tenant router
+2. app.js          → wire globalErrorHandler
+3. app.js          → add tenantId resolution middleware
+4. Subscription.js → rename schoolId → tenantId
+5. models/index.js → import and export Subject
+6. Student.js      → add missing DataTypes import and default export
+7. package.json    → add express-validator dependency
+8. All routers     → add .js extensions to imports
+9. base.controller.js → import catchAsync
+```
+
+---
+
+## Pending Features — Open for Contribution
+
+Each section below is a self-contained feature. Pick one, create a branch, implement it end-to-end (model → repository → service → controller → router → validator), and open a PR.
+
+---
+
+### PLATFORM SIDE
+
+These features are managed by the SaaS team (super admins). They live under `/platform/*`.
+
+---
+
+#### FEATURE P-1 · Exam Management (Platform Config)
+
+**What:** Super admins define global exam types and grading scale templates that schools can adopt.
+
+**Why:** Schools should not have to configure exam types from scratch. The platform provides sensible defaults that tenants can override.
+
+**Models to create:**
+
+```js
+// ExamType.js
+// tenantId nullable (platform types are global)
+{
+  name:        STRING,      // "Unit Test", "Half-Yearly", "Annual"
+  slug:        STRING,      // unique
+  description: TEXT,
+  isSystem:    BOOLEAN,     // platform-defined, cannot be deleted by tenant
+}
+
+// GradeScaleTemplate.js
+// platform-level defaults
+{
+  name:      STRING,        // "CBSE Standard", "Percentage"
+  scaleType: ENUM("percentage", "gpa", "cgpa", "letter"),
+  rules:     JSONB,         // [{ label:"A+", minPct:90, maxPct:100, gradePoint:4.0 }]
+  isDefault: BOOLEAN,
+}
+```
+
+**Routes:**
+
+```
+POST   /platform/exam-types
+GET    /platform/exam-types
+PATCH  /platform/exam-types/:id
+DELETE /platform/exam-types/:id
+
+POST   /platform/grade-scale-templates
+GET    /platform/grade-scale-templates
+PATCH  /platform/grade-scale-templates/:id
+```
+
+**Acceptance criteria:**
+- Only users with `role.type = "platform"` can access these routes
+- `isSystem` records cannot be deleted
+- Templates are available to all tenants via a public GET
+
+---
+
+#### FEATURE P-2 · Role Management (Platform)
+
+**What:** Super admins create and manage global system roles and assign permissions to them.
+
+**Why:** The Role and Permission models exist but there are no routes to manage them. This feature wires up the full CRUD layer.
+
+**Routes:**
+
+```
+POST   /platform/roles
+GET    /platform/roles
+GET    /platform/roles/:id
+PATCH  /platform/roles/:id
+DELETE /platform/roles/:id          (blocked if isSystem = true)
+
+POST   /platform/roles/:id/permissions      (assign permission to role)
+DELETE /platform/roles/:id/permissions/:permId
+
+GET    /platform/permissions                (list all permissions)
+POST   /platform/permissions
+```
+
+**Business rules:**
+- A user can only assign roles with `hierarchyLevel` strictly greater than their own level
+- `isSystem` roles cannot be deleted or have their `hierarchyLevel` changed
+- Changing a role's permissions takes effect on the next login (JWT re-issue)
+
+---
+
+#### FEATURE P-3 · Payroll Management (Platform Config)
+
+**What:** Platform-level payroll component templates and tax slab configuration.
+
+**Why:** Tax rules (TDS, PF, ESI, Professional Tax) vary by state and financial year. Defining them at the platform level means tenants inherit correct defaults.
+
+**Models to create:**
+
+```js
+// PayrollComponent.js
+// tenantId nullable = platform template
+{
+  name:          STRING,    // "Basic", "HRA", "PF Employee"
+  componentType: ENUM("earning", "deduction"),
+  calculationType: ENUM("flat", "percentage_of_basic", "percentage_of_gross"),
+  defaultValue:  DECIMAL,
+  isSystem:      BOOLEAN,
+}
+
+// TaxSlab.js
+{
+  financialYear: STRING,    // "2025-26"
+  regime:        ENUM("old", "new"),
+  slabs:         JSONB,     // [{ from:0, to:300000, rate:0 }, ...]
+  state:         STRING,    // for Professional Tax slabs
+}
+```
+
+**Routes:**
+
+```
+POST   /platform/payroll-components
+GET    /platform/payroll-components
+PATCH  /platform/payroll-components/:id
+
+POST   /platform/tax-slabs
+GET    /platform/tax-slabs
+PATCH  /platform/tax-slabs/:id
+```
+
+---
+
+### ADMIN SIDE
+
+These features are used by school owners and principals. They live under `/admin/*`.
+
+---
+
+#### FEATURE A-1 · Exam Management (Tenant Level)
+
+**What:** Principals create exam groups, schedule exams per subject/section, and manage marks entry.
+
+**Models to create:**
+
+```js
+// ExamGroup.js  (tenant-scoped)
+{
+  academicYearId:   UUID FK,
+  name:             STRING,       // "Half-Yearly Examination 2025"
+  examTypeId:       UUID FK,      // → ExamType (platform)
+  gradeScaleId:     UUID FK,
+  startDate:        DATEONLY,
+  endDate:          DATEONLY,
+  weightagePercent: DECIMAL,
+  isResultPublished: BOOLEAN,
+  resultPublishedAt: DATE,
+}
+
+// ExamSchedule.js  (tenant-scoped)
+{
+  examGroupId: UUID FK,
+  subjectId:   UUID FK,
+  sectionId:   UUID FK,
+  examDate:    DATEONLY,
+  startTime:   TIME,
+  duration:    INTEGER,           // minutes
+  maxMarks:    INTEGER,
+  passingMarks: INTEGER,
+  roomId:      UUID FK nullable,
+  isMarksEntryLocked: BOOLEAN,
+}
+
+// Mark.js  (tenant-scoped)
+{
+  studentId:      UUID FK,
+  examScheduleId: UUID FK,
+  marksObtainedRaw: INTEGER,      // stored ×100 to avoid float errors
+  graceMarksRaw:    INTEGER,
+  isAbsent:       BOOLEAN,
+  teacherRemarks: TEXT,
+  enteredById:    UUID FK,
+  verifiedById:   UUID FK nullable,
+}
+// unique: (tenantId, studentId, examScheduleId)
+```
+
+**Routes:**
+
+```
+POST   /admin/exam-groups
+GET    /admin/exam-groups
+GET    /admin/exam-groups/:id
+PATCH  /admin/exam-groups/:id
+
+POST   /admin/exam-groups/:id/schedules
+GET    /admin/exam-groups/:id/schedules
+PATCH  /admin/exam-schedules/:id
+POST   /admin/exam-schedules/:id/lock-marks
+
+POST   /admin/marks/bulk          (batch upsert marks for one schedule)
+GET    /admin/marks/:examScheduleId
+```
+
+**Business rules:**
+- Marks can only be entered after `examDate`
+- Once `isMarksEntryLocked = true`, no teacher can modify marks
+- `marksObtainedRaw` must be between 0 and `maxMarks × 100`
+
+---
+
+#### FEATURE A-2 · Role Management (Tenant Level)
+
+**What:** Principals create custom roles for their school (e.g. "Lab In-charge", "Sports Coach") and assign permissions.
+
+**Routes:**
+
+```
+POST   /admin/roles
+GET    /admin/roles
+GET    /admin/roles/:id
+PATCH  /admin/roles/:id
+DELETE /admin/roles/:id           (blocked if isSystem = true)
+
+POST   /admin/roles/:id/permissions
+DELETE /admin/roles/:id/permissions/:permId
+
+POST   /admin/users/:id/roles     (assign role to a user)
+DELETE /admin/users/:id/roles/:roleId
+```
+
+**Business rules:**
+- Tenant roles must have `tenantId` set (never null)
+- Only roles with `type = "admin"` or `"staff"` or `"portal"` can be created by tenant admins
+- `hierarchyLevel` of the new role must be greater than the assigning user's level
+
+---
+
+#### FEATURE A-3 · Payroll Management (Tenant Level)
+
+**What:** HR admins run monthly payroll, compute payslips, and track disbursement.
+
+**Models to create:**
+
+```js
+// StaffPayrollConfig.js  (tenant-scoped, per staff member)
+{
+  staffId:       UUID FK,
+  basicSalary:   DECIMAL,
+  components:    JSONB,   // [{componentId, overrideValue}]
+  taxRegime:     ENUM("old", "new"),
+  effectiveFrom: DATEONLY,
+}
+
+// PayrollRun.js  (tenant-scoped)
+{
+  month:           STRING,        // "2025-07"
+  status:          ENUM("draft", "under_review", "approved", "disbursed"),
+  totalGrossRaw:   BIGINT,
+  totalNetRaw:     BIGINT,
+  preparedById:    UUID FK,
+  approvedById:    UUID FK nullable,
+  approvedAt:      DATE nullable,
+}
+
+// Payslip.js  (tenant-scoped)
+{
+  payrollRunId:   UUID FK,
+  staffId:        UUID FK,
+  month:          STRING,
+  workingDays:    INTEGER,
+  presentDays:    DECIMAL,
+  lopDays:        DECIMAL,
+  components:     JSONB,          // [{name, type, amountRaw}]
+  grossEarningsRaw:   BIGINT,
+  totalDeductionsRaw: BIGINT,
+  netPayRaw:          BIGINT,
+  tdsRaw:             BIGINT,
+  pfEmployeeRaw:      BIGINT,
+  pfEmployerRaw:      BIGINT,
+  payslipPdfUrl:      STRING nullable,
+}
+// unique: (tenantId, staffId, month)
+```
+
+**Routes:**
+
+```
+POST   /admin/payroll/runs               (initiate monthly run)
+GET    /admin/payroll/runs
+GET    /admin/payroll/runs/:id
+PATCH  /admin/payroll/runs/:id/submit    (submit for review)
+PATCH  /admin/payroll/runs/:id/approve   (principal approves)
+
+GET    /admin/payroll/runs/:id/payslips
+GET    /admin/payroll/payslips/:staffId  (one staff member's history)
+```
+
+---
+
+### STAFF PORTAL
+
+The entire staff portal is pending. Staff users log in and access `/staff/*`.
+
+---
+
+#### FEATURE S-1 · Staff Dashboard
+
+**What:** A home screen showing today's timetable, pending leave applications, and class attendance summary.
+
+**Routes:**
+
+```
+GET /staff/dashboard          (summary: today's periods, pending leaves, attendance %)
+GET /staff/timetable          (slots assigned to this teacher for current AY)
+```
+
+---
+
+#### FEATURE S-2 · Attendance Management (Staff)
+
+**What:** Class teachers mark daily attendance for their section. Subject teachers mark period-wise attendance.
+
+**Models to create:**
+
+```js
+// Attendance.js  (tenant-scoped)
+{
+  studentId:      UUID FK,
+  sectionId:      UUID FK,
+  academicYearId: UUID FK,
+  date:           DATEONLY,
+  status:         ENUM("present", "absent", "late", "half_day", "on_leave"),
+  markedById:     UUID FK,
+  isCorrected:    BOOLEAN,
+  correctedById:  UUID FK nullable,
+  correctionReason: TEXT nullable,
+  notificationSent: BOOLEAN,
+}
+// unique: (tenantId, studentId, date)
+```
+
+**Routes:**
+
+```
+POST   /staff/attendance/bulk           (mark attendance for a section + date)
+GET    /staff/attendance/:sectionId     (filter by date)
+PATCH  /staff/attendance/:id            (correction with reason)
+GET    /staff/attendance/summary/:studentId   (monthly % for a student)
+```
+
+**Business rules:**
+- Only the class teacher of a section can mark/correct daily attendance
+- Corrections require a non-empty `correctionReason`
+- After submission, trigger a notification job for absent students (fire and forget)
+
+---
+
+#### FEATURE S-3 · Marks Entry (Staff)
+
+**What:** Teachers enter exam marks for students in their assigned subjects.
+
+**Routes:**
+
+```
+GET    /staff/exam-schedules            (schedules assigned to this teacher)
+POST   /staff/marks/bulk               (upsert marks for one schedule)
+GET    /staff/marks/:examScheduleId    (view entered marks)
+```
+
+**Business rules:**
+- Teacher can only enter marks for subjects where a `TeacherSubjectAssignment` exists for them
+- Blocked if `isMarksEntryLocked = true`
+- All marks must be between 0 and `maxMarks × 100`
+
+---
+
+#### FEATURE S-4 · Leave Management (Staff)
+
+**What:** Staff apply for leave. Supervisor approves or rejects.
+
+**Models to create:**
+
+```js
+// LeaveType.js  (tenant-scoped)
+{
+  name:           STRING,   // "Casual Leave"
+  code:           STRING,   // "CL"
+  annualQuota:    DECIMAL,
+  carryForward:   BOOLEAN,
+  isPaidLeave:    BOOLEAN,
+}
+
+// LeaveApplication.js  (tenant-scoped)
+{
+  staffId:       UUID FK,
+  leaveTypeId:   UUID FK,
+  fromDate:      DATEONLY,
+  toDate:        DATEONLY,
+  numberOfDays:  DECIMAL,
+  reason:        TEXT,
+  status:        ENUM("pending", "approved", "rejected", "canceled"),
+  approvedById:  UUID FK nullable,
+  approvedAt:    DATE nullable,
+  rejectionReason: TEXT nullable,
+}
+```
+
+**Routes:**
+
+```
+POST   /staff/leaves                      (apply for leave)
+GET    /staff/leaves                      (my applications)
+PATCH  /staff/leaves/:id/cancel
+
+GET    /admin/leaves                      (all pending applications)
+PATCH  /admin/leaves/:id/approve
+PATCH  /admin/leaves/:id/reject
+```
+
+---
+
+#### FEATURE S-5 · Timetable View (Staff)
+
+**What:** Staff view their weekly timetable.
+
+**Routes:**
+
+```
+GET /staff/timetable                      (published slots for this teacher)
+GET /staff/timetable/section/:sectionId   (full section timetable)
+```
+
+---
+
+### PORTAL SIDE (Student & Parent)
+
+The entire portal is pending. Students and parents log in at `/portal/*`.
+
+---
+
+#### FEATURE PO-1 · Student Dashboard
+
+**What:** Home screen showing attendance %, upcoming exams, fee dues, and recent notices.
+
+**Routes:**
+
+```
+GET /portal/dashboard
+```
+
+---
+
+#### FEATURE PO-2 · Student Attendance
+
+**What:** Student and parent view attendance records.
+
+**Routes:**
+
+```
+GET /portal/attendance                     (own attendance, current AY)
+GET /portal/attendance/monthly-summary     (month-wise % breakdown)
+```
+
+---
+
+#### FEATURE PO-3 · Exam Results & Report Cards
+
+**What:** Students view marks and download report cards after publication.
+
+**Models to create:**
+
+```js
+// ReportCard.js  (tenant-scoped)
+{
+  studentId:    UUID FK,
+  examGroupId:  UUID FK,
+  pdfUrl:       STRING,
+  generatedAt:  DATE,
+  isPublished:  BOOLEAN,
+}
+```
+
+**Routes:**
+
+```
+GET /portal/results                        (all published results for this student)
+GET /portal/results/:examGroupId          (one exam group's marks)
+GET /portal/report-cards/:examGroupId     (download PDF)
+```
+
+**Business rules:**
+- Results only visible after `ExamGroup.isResultPublished = true`
+- PDF served via time-limited pre-signed URL
+
+---
+
+#### FEATURE PO-4 · Fee & Payments
+
+**What:** Students/parents view invoices and fee dues.
+
+**Models to create:**
+
+```js
+// Invoice.js  (tenant-scoped)
+{
+  studentId:      UUID FK,
+  academicYearId: UUID FK,
+  invoiceNumber:  STRING,   // unique per tenant
+  invoiceDate:    DATEONLY,
+  dueDate:        DATEONLY,
+  status:         ENUM("draft","sent","partially_paid","paid","overdue","canceled"),
+  totalRaw:       BIGINT,
+  paidRaw:        BIGINT,
+  balanceRaw:     BIGINT,
+}
+
+// Payment.js  (tenant-scoped)
+{
+  invoiceId:     UUID FK,
+  studentId:     UUID FK,
+  receiptNumber: STRING,
+  paymentDate:   DATEONLY,
+  amountRaw:     BIGINT,
+  paymentMode:   ENUM("cash","online","upi","cheque","neft"),
+  status:        ENUM("pending","completed","failed","refunded"),
+  gatewayPaymentId: STRING nullable,
+}
+```
+
+**Routes:**
+
+```
+GET /portal/invoices                       (all invoices for this student)
+GET /portal/invoices/:id                   (invoice detail + line items)
+GET /portal/payments                       (payment history)
+POST /portal/payments/initiate             (create gateway order)
+POST /portal/payments/webhook              (gateway callback — public, verify signature)
+```
+
+---
+
+#### FEATURE PO-5 · Notices
+
+**What:** Students and parents view published announcements.
+
+**Model to create:**
+
+```js
+// Notice.js  (tenant-scoped)
+{
+  title:          STRING,
+  body:           TEXT,
+  noticeType:     ENUM("general","exam","holiday","event","emergency","fee_reminder"),
+  priority:       ENUM("low","medium","high","urgent"),
+  targetAudience: JSONB,    // { type: "all"|"class"|"section", ids: [] }
+  channels:       JSONB,    // ["portal","sms","email","push"]
+  publishedAt:    DATE nullable,
+  expiresAt:      DATE nullable,
+  status:         ENUM("draft","scheduled","published","expired"),
+  createdById:    UUID FK,
+}
+```
+
+**Routes:**
+
+```
+GET /portal/notices                        (published, not expired, targeted to me)
+GET /portal/notices/:id
+```
+
+---
+
+## How to Contribute
+
+```bash
+# 1. Fork the repo and clone
+git clone https://github.com/your-org/edu-server.git
+
+# 2. Install dependencies
+npm install
+
+# 3. Copy env file
+cp .env.example .env
+# Fill in DATABASE_URL and other required values
+
+# 4. Create your feature branch
+git checkout -b feature/P-1-exam-management
+
+# 5. Implement your feature
+# model → repository → service → controller → router → validator
+
+# 6. Open a pull request
+# Title format: [P-1] Exam Management — Platform Config
+```
+
+**PR checklist:**
+- [ ] Model created with `withTenant()`, proper indexes, and paranoid where relevant
+- [ ] Repository extends `BaseRepository`
+- [ ] Service extends `BaseService`, business rules enforced here (not in controller)
+- [ ] Controller extends `BaseController`, uses `catchAsync`
+- [ ] Router mounted in `app.js`
+- [ ] Validator using `express-validator`
+- [ ] No raw SQL — all queries through Sequelize
+
+---
+
+## Environment Variables
+
+```env
+DATABASE_URL=postgresql://user:password@host:5432/edudb
+PORT=3000
+NODE_ENV=development
+CORS_ORIGIN=http://localhost:3001
+```
+
+---
+
+## License
+
+MIT
