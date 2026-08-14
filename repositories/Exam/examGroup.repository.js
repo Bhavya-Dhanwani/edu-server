@@ -1,3 +1,4 @@
+import { Op } from "sequelize";
 import { ExamGroup, AcademicYear, GradeScale } from "../../models/index.js";
 import { BaseRepository } from "../base.repository.js";
 
@@ -20,8 +21,16 @@ export class ExamGroupRepository extends BaseRepository {
     super(ExamGroup);
   }
 
-  async findByName(name, tenantId) {
-    return await this.model.findOne({ where: { name, tenantId } });
+  async findByName(name, academicYearId, tenantId) {
+    if (!name) return null;
+    const where = {
+      name: { [Op.iLike]: name.trim() },
+      tenantId,
+    };
+    if (academicYearId) {
+      where.academicYearId = academicYearId;
+    }
+    return await this.model.findOne({ where });
   }
 
   async findByAcademicYear(academicYearId, tenantId) {

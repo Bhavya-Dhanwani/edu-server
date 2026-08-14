@@ -13,9 +13,10 @@ export class ExamGroupService {
       }
     }
 
-    const existing = await examGroupRepo.findByName(name.trim(), tenantId);
+    const existing = await examGroupRepo.findByName(name.trim(), academicYearId, tenantId);
+    console.log(existing, "this is data Existing ----")
     if (existing) {
-      throw new AppError("An exam group with this name already exists", 400);
+      throw new AppError("An exam group with this name already exists in this academic session", 400);
     }
 
     const examGroup = await examGroupRepo.create({
@@ -69,9 +70,12 @@ export class ExamGroupService {
       }
     }
 
-    if (updateData.name && updateData.name.trim() !== examGroup.name) {
-      const existing = await examGroupRepo.findByName(updateData.name.trim(), tenantId);
-      if (existing) throw new AppError("An exam group with this name already exists", 400);
+    const yearId = updateData.academicYearId || examGroup.academicYearId;
+    if (updateData.name) {
+      const existing = await examGroupRepo.findByName(updateData.name.trim(), yearId, tenantId);
+      if (existing && existing.id !== id) {
+        throw new AppError("An exam group with this name already exists in this academic session", 400);
+      }
     }
 
     await examGroupRepo.update(id, tenantId, {
@@ -135,23 +139,23 @@ export class ExamGroupService {
       tenantId: examGroup.tenantId,
       academicYear: examGroup.academicYear
         ? {
-            id: examGroup.academicYear.id,
-            name: examGroup.academicYear.name,
-            startDate: examGroup.academicYear.startDate,
-            endDate: examGroup.academicYear.endDate,
-          }
+          id: examGroup.academicYear.id,
+          name: examGroup.academicYear.name,
+          startDate: examGroup.academicYear.startDate,
+          endDate: examGroup.academicYear.endDate,
+        }
         : { id: examGroup.academicYearId },
       name: examGroup.name,
       examType: examGroup.examType,
       gradingScheme: examGroup.gradingScheme
         ? {
-            id: examGroup.gradingScheme.id,
-            name: examGroup.gradingScheme.name,
-            scaleType: examGroup.gradingScheme.scaleType,
-          }
+          id: examGroup.gradingScheme.id,
+          name: examGroup.gradingScheme.name,
+          scaleType: examGroup.gradingScheme.scaleType,
+        }
         : examGroup.gradingSchemeId
-        ? { id: examGroup.gradingSchemeId }
-        : null,
+          ? { id: examGroup.gradingSchemeId }
+          : null,
       startDate: examGroup.startDate,
       endDate: examGroup.endDate,
       isResultPublished: examGroup.isResultPublished,

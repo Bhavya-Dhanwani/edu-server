@@ -79,4 +79,6 @@ export const checkPermission = (requiredPermission) => {
   };
 };
 
+export { requireOpenAcademicYear } from "./requireOpenAcademicYear.middleware.js";
+
 

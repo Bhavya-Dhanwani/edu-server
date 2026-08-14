@@ -10,10 +10,10 @@ const router = express.Router();
 const ctrl = new GradeScaleRuleController();
 
 // Nested under grade-scale: /grade-scales/:gradeScaleId/rules
-router.post("/", identifyUser, checkPermission("create:gradescalerules"), createGradeScaleRuleValidator, ctrl.create);
+router.post("/", identifyUser, checkPermission("create:exams"), createGradeScaleRuleValidator, ctrl.create);
 router.get("/", identifyUser, ctrl.getAll);
 router.get("/:id", identifyUser, ctrl.getOne);
-router.patch("/:id", identifyUser, checkPermission("update:gradescalerules"), updateGradeScaleRuleValidator, ctrl.update);
-router.delete("/:id", identifyUser, checkPermission("delete:gradescalerules"), ctrl.delete);
+router.patch("/:id", identifyUser, checkPermission("update:exams"), updateGradeScaleRuleValidator, ctrl.update);
+router.delete("/:id", identifyUser, checkPermission("delete:exams"), ctrl.delete);
 
 export default router;

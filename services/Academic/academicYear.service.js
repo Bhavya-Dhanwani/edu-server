@@ -61,7 +61,9 @@ export class AcademicYearService {
 
     const filters = {};
     if (query.isCurrent === "true") filters.isCurrent = true;
+    if (query.isCurrent === "false") filters.isCurrent = false;
     if (query.isLocked === "true") filters.isLocked = true;
+    if (query.isLocked === "false") filters.isLocked = false;
 
     if (search) filters.search = search;
 

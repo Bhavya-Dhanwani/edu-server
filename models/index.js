@@ -54,6 +54,9 @@ import { FeeStructureItem } from "./FeeStructure/FeeStructureItem.js";
 import { Attendance } from "./Attendance.js";
 import { AttendancePeriod } from "./AttendancePeriod.js";
 
+// --- Admissions ---
+import { AdmissionLead } from "./admissions/AdmissionLead.js";
+
 import TenantProvisioningStep from "./TenantProvisioningStep.js";
 
 // ==========================================
@@ -294,6 +297,16 @@ ExamGroup.belongsTo(GradeScale, {
   as: "gradingScheme",
 });
 
+ExamGroup.belongsTo(AcademicYear, {
+  foreignKey: "academicYearId",
+  as: "academicYear",
+});
+
+AcademicYear.hasMany(ExamGroup, {
+  foreignKey: "academicYearId",
+  as: "examGroups",
+});
+
 // Connection between ExamGroup and its detailed Schedule allocations
 ExamGroup.hasMany(ExamSchedule, {
   foreignKey: "exam_group_id",
@@ -318,6 +331,15 @@ SubjectMaster.hasMany(ExamSchedule, {
   as: "examSchedules",
 });
 
+ExamSchedule.belongsTo(Section, {
+  foreignKey: "sectionId",
+  as: "section",
+});
+Section.hasMany(ExamSchedule, {
+  foreignKey: "sectionId",
+  as: "examSchedules",
+});
+
 // One scheduled slot has many students marks entries mapped
 ExamSchedule.hasMany(Mark, {
   foreignKey: "exam_schedule_id",
@@ -328,6 +350,48 @@ ExamSchedule.hasMany(Mark, {
 Mark.belongsTo(ExamSchedule, {
   foreignKey: "exam_schedule_id",
   as: "examSchedule",
+});
+
+// ==========================================
+// 9. ADMISSIONS LOGIC
+// ==========================================
+Tenant.hasMany(AdmissionLead, { foreignKey: "tenantId", as: "admissionLeads" });
+AdmissionLead.belongsTo(Tenant, { foreignKey: "tenantId", as: "organization" });
+
+AcademicYear.hasMany(AdmissionLead, {
+  foreignKey: "academicYearId",
+  as: "admissionLeads",
+});
+AdmissionLead.belongsTo(AcademicYear, {
+  foreignKey: "academicYearId",
+  as: "academicYear",
+});
+
+Class.hasMany(AdmissionLead, {
+  foreignKey: "appliedClassId",
+  as: "admissionLeads",
+});
+AdmissionLead.belongsTo(Class, {
+  foreignKey: "appliedClassId",
+  as: "appliedClass",
+});
+
+User.hasMany(AdmissionLead, {
+  foreignKey: "assignedToId",
+  as: "assignedAdmissionLeads",
+});
+AdmissionLead.belongsTo(User, {
+  foreignKey: "assignedToId",
+  as: "assignedTo",
+});
+
+Student.hasOne(AdmissionLead, {
+  foreignKey: "convertedStudentId",
+  as: "admissionLead",
+});
+AdmissionLead.belongsTo(Student, {
+  foreignKey: "convertedStudentId",
+  as: "convertedStudent",
 });
 
 Tenant.addScope("active", { where: { status: "active" } });
@@ -368,5 +432,6 @@ export {
   FeeHead,
   FeeStructure,
   FeeStructureItem,
-  TenantProvisioningStep, 
+  TenantProvisioningStep,
+  AdmissionLead,
 };

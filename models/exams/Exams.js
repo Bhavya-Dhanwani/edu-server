@@ -78,6 +78,19 @@ export const ExamSchedule = sequelize.define(
       references: { model: "sections", key: "id" },
       onDelete: "CASCADE",
     },
+
+    assessmentType: {
+      type: DataTypes.ENUM(
+        "theory",
+        "internal",
+        "external",
+        "practical",
+        "viva",
+        "other",
+      ),
+      allowNull: false,
+      defaultValue: "theory",
+    },
     examDate: { type: DataTypes.DATEONLY, allowNull: false },
     startTime: { type: DataTypes.TIME, allowNull: true },
     endTime: { type: DataTypes.TIME, allowNull: true },
@@ -88,7 +101,12 @@ export const ExamSchedule = sequelize.define(
     timestamps: true,
     underscored: true,
     tableName: "exam_schedules",
-    // indexes: [...tenantIndex(["exam_group_id"]), ...tenantIndex(["exam_date"])],
+    // indexes:[
+    //   {
+    //     unique:true , 
+    //     fields:["tenant_id", "exam_group_id", "subject_id", "section_id", "assessment_type"]
+    //   }
+    // ]
   },
 );
 

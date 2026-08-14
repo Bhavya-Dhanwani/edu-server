@@ -17,27 +17,41 @@ export class GuardianService extends BaseService {
   }
 
   async resolveGuardianRole(tenantId) {
-    const roles = await roleService.getAllRoles(tenantId, { slug: "student" });
-    if (!roles[0]) {
-      throw new AppError("Student (Portal) role not found for this tenant", 404);
+    const roles = await roleService.getAllRoles(tenantId, { slug: "guardian" });
+    if (roles[0]) return roles[0];
+    const fallbackRoles = await roleService.getAllRoles(tenantId, { slug: "student" });
+    if (!fallbackRoles[0]) {
+      throw new AppError("Guardian or Student role not found for this tenant", 404);
     }
-    return roles[0];
+    return fallbackRoles[0];
   }
+
   async resolveGuardian(tenantId, payload, options = {}) {
-    const { email } = payload;
-    
-    // Check if guardian with same email already exists (reuse case)
-    const existingGuardian = await guardianRepo.findByEmail(email, tenantId);
-    if (existingGuardian) {
-      // Already exists - convert to plain object and return for reuse
-      const guardianData = existingGuardian.get ? existingGuardian.get({ plain: true }) : existingGuardian;
-      return guardianData;
+    const { email, phone } = payload;
+
+    // Check if guardian with same email already exists
+    if (email) {
+      const existingGuardian = await guardianRepo.findByEmail(email, tenantId);
+      if (existingGuardian) {
+        const guardianData = existingGuardian.get ? existingGuardian.get({ plain: true }) : existingGuardian;
+        return guardianData;
+      }
+    }
+
+    // Check if guardian with same phone already exists
+    if (phone) {
+      const existingGuardian = await guardianRepo.findByPhone(phone, tenantId);
+      if (existingGuardian) {
+        const guardianData = existingGuardian.get ? existingGuardian.get({ plain: true }) : existingGuardian;
+        return guardianData;
+      }
     }
 
     // Doesn't exist - create new guardian
     return await this.createGuardian(tenantId, payload, options);
-  } 
-  async createGuardian(tenantId, payload, options = {}){
+  }
+
+  async createGuardian(tenantId, payload, options = {}) {
     const {
       email,
       password,
@@ -48,7 +62,7 @@ export class GuardianService extends BaseService {
       occupation,
       isPrimaryContact,
       requestedBy,
-    } = payload
+    } = payload;
 
     let transaction = options.transaction;
     let localTransaction = false;
@@ -59,39 +73,45 @@ export class GuardianService extends BaseService {
     }
 
     try {
-          const user = await userService.createUser(
-            {
-              email,
-              password,
-              firstName,
-              lastName,
-              phone,
-              tenantId,
-              status: "active",
-              emailVerified: true,
-            },
-            { transaction },
-          );
-    
-          const guardianRole = await this.resolveGuardianRole(tenantId);
-           await userRoleService.assignRoleToUser(
-        {
-          userId: user.id,
-          roleId: guardianRole.id,
-          tenantId,
-          assignedById: requestedBy,
-        },
-        { transaction },
-      );
+      let userId = null;
+
+      // Only create User account if email AND password are provided
+      if (email && password) {
+        const user = await userService.createUser(
+          {
+            email,
+            password,
+            firstName: firstName || "Guardian",
+            lastName: lastName || "",
+            phone,
+            tenantId,
+            status: "active",
+            emailVerified: true,
+          },
+          { transaction },
+        );
+
+        const guardianRole = await this.resolveGuardianRole(tenantId);
+        await userRoleService.assignRoleToUser(
+          {
+            userId: user.id,
+            roleId: guardianRole.id,
+            tenantId,
+            assignedById: requestedBy,
+          },
+          { transaction },
+        );
+        userId = user.id;
+      }
 
       const guardian = await guardianRepo.create(
         {
           tenantId,
-          userId: user.id,
-          relation,
+          userId,
+          relation: relation || "guardian",
           phone,
           occupation,
-          isPrimaryContact,
+          isPrimaryContact: isPrimaryContact ?? true,
         },
         { transaction },
       );
