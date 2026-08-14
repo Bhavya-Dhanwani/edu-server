@@ -62,55 +62,48 @@ export class ClassSubjectService extends BaseService {
         tenantId,
         { transaction }
       );
-      const existingMap = new Map(existingMappings.map((mapping) => [mapping.subjectMasterId, mapping]));
+
+      if (existingMappings.length > 0) {
+        const assignedSubjectsMap = new Map(foundSubjects.map((s) => [s.id, s.name]));
+        const alreadyAssignedNames = existingMappings
+          .map((m) => assignedSubjectsMap.get(m.subjectMasterId) || "Subject")
+          .join(", ");
+        throw new AppError(
+          `Subject(s) already assigned to this class: ${alreadyAssignedNames}`,
+          400
+        );
+      }
 
       for (const subjectData of subjects) {
         const { subjectMasterId, code, isElective, weeklyPeriods, passingMarks } = subjectData;
-        const existing = existingMap.get(subjectMasterId);
 
-        if (existing) {
-          // Update existing mapping
-          const updated = await classSubjectRepo.update(
-            existing.id,
-            tenantId,
+        // Create new mapping
+        const newMapping = await classSubjectRepo.create({
+          tenantId,
+          classId,
+          subjectMasterId,
+          code: code ?? null,
+          isElective: isElective ?? false,
+          weeklyPeriods: weeklyPeriods ?? 5,
+          passingMarks: passingMarks ?? 33
+        }, { transaction });
+
+        // Fetch with associations
+        const withAssociations = await classSubjectRepo.findById(newMapping.id, tenantId, {
+          include: [
             {
-              code: code ?? existing.code,
-              isElective: isElective !== undefined ? isElective : existing.isElective,
-              weeklyPeriods: weeklyPeriods ?? existing.weeklyPeriods,
-              passingMarks: passingMarks ?? existing.passingMarks
+              association: "subject",
+              attributes: ["id", "name", "type"]
             },
-            { transaction }
-          );
-          results.push(this.formatClassSubjectResponse(updated));
-        } else {
-          // Create new mapping
-          const newMapping = await classSubjectRepo.create({
-            tenantId,
-            classId,
-            subjectMasterId,
-            code: code ?? null,
-            isElective: isElective ?? false,
-            weeklyPeriods: weeklyPeriods ?? 5,
-            passingMarks: passingMarks ?? 33
-          }, { transaction });
+            {
+              association: "class",
+              attributes: ["id", "name", "numericLevel"]
+            }
+          ],
+          transaction
+        });
 
-          // Fetch with associations
-          const withAssociations = await classSubjectRepo.findById(newMapping.id, tenantId, {
-            include: [
-              {
-                association: "subject",
-                attributes: ["id", "name", "type"]
-              },
-              {
-                association: "class",
-                attributes: ["id", "name", "numericLevel"]
-              }
-            ],
-            transaction
-          });
-
-          results.push(this.formatClassSubjectResponse(withAssociations));
-        }
+        results.push(this.formatClassSubjectResponse(withAssociations));
       }
 
       await transaction.commit();
@@ -246,7 +239,7 @@ export class ClassSubjectService extends BaseService {
   }
 
   /**
-   * SEARCH CLASS SUBJECTS
+   * SEARCH CLASS SUBJECTS (GROUPED BY CLASS)
    */
   async searchClassSubjects(tenantId, query) {
     const page = Number.parseInt(query.page, 10) > 0 ? Number.parseInt(query.page, 10) : 1;
@@ -261,10 +254,10 @@ export class ClassSubjectService extends BaseService {
       filters.isElective = query.isElective === "true";
     }
 
-    const result = await classSubjectRepo.searchClassSubject(tenantId, searchTerm, page, limit, filters);
-    result.data = result.data.map(cs => this.formatClassSubjectResponse(cs));
-    
-    return result;
+    return await classSubjectRepo.findGroupedByClass(tenantId, page, limit, {
+      search: searchTerm,
+      ...filters,
+    });
   }
 
   /**

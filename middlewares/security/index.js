@@ -52,8 +52,8 @@ export const identifyUser = async (req, res, next) => {
 
     next();
   } catch (err) {
-    console.log(err);
-    return res.status(401).json({ message: "Session invalid" });
+    console.error("Authentication Error:", err);
+    return res.status(401).json({ message: err.message || "Session invalid" });
   }
 };
 

@@ -10,7 +10,7 @@ const router = express.Router();
 const ctrl = new SectionController();
 
 // Get Section Options (must come before /:id to avoid route conflicts)
-router.get("/options", identifyUser, ctrl.getOptions);
+router.get("/options", identifyUser, requireOpenAcademicYear, ctrl.getOptions);
 
 // Create Section
 router.post("/", identifyUser, checkPermission("create:sections"), requireOpenAcademicYear, createSectionValidator, ctrl.create);

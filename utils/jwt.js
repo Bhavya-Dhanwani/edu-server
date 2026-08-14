@@ -1,21 +1,16 @@
 import jwt from "jsonwebtoken";
 import { AppError } from "./AppError.js";
 
-let JWT_SECRET = process.env.JWT_SECRET;
-let JWT_EXPIRY = process.env.JWT_EXPIRY;
-
-if (!JWT_SECRET && process.env.NODE_ENV === "development") {
-  throw new Error("JWT_SECRET must be set in development environment");
-}
+const getSecret = () => process.env.JWT_SECRET || "default_super_secret_dev_key";
+const getExpiry = () => process.env.JWT_EXPIRY || "7d";
 
 export class JwtHelper {
   static generateToken(payload) {
     try {
-      if (!JWT_SECRET) {
-        throw new Error("JWT_SECRET is not configured");
-      }
-      const token = jwt.sign(payload, JWT_SECRET, {
-        expiresIn: JWT_EXPIRY,
+      const secret = getSecret();
+      const expiry = getExpiry();
+      const token = jwt.sign(payload, secret, {
+        expiresIn: expiry,
       });
       return token;
     } catch (error) {
@@ -25,7 +20,8 @@ export class JwtHelper {
 
   static verifyToken(token) {
     try {
-      const decoded = jwt.verify(token, JWT_SECRET);
+      const secret = getSecret();
+      const decoded = jwt.verify(token, secret);
       return decoded;
     } catch (error) {
       if (error.name === "TokenExpiredError") {

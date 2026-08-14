@@ -7,7 +7,19 @@ const examGroupRepo = new ExamGroupRepository();
 
 export class ExamScheduleService {
   async createExamSchedule(tenantId, payload) {
-    const { examGroupId, subjectId, sectionId, examDate, startTime, endTime, maxMarks, passingMarks } = payload;
+    const { examGroupId, subjectId, sectionId, sectionIds, examDate, startTime, endTime, maxMarks, passingMarks } = payload;
+
+    const targetSectionIds = Array.isArray(sectionIds)
+      ? sectionIds
+      : Array.isArray(sectionId)
+      ? sectionId
+      : sectionId
+      ? [sectionId]
+      : [];
+
+    if (targetSectionIds.length === 0) {
+      throw new AppError("At least one section must be specified", 400);
+    }
 
     const examGroup = await examGroupRepo.findById(examGroupId, tenantId);
     if (!examGroup) throw new AppError("Exam group not found", 404);
@@ -24,26 +36,37 @@ export class ExamScheduleService {
       throw new AppError("endTime must be after startTime", 400);
     }
 
-    const conflict = await examScheduleRepo.findConflict(sectionId, subjectId, examDate, tenantId);
-    if (conflict) {
-      throw new AppError("A schedule for this subject and section on this date already exists", 400);
+    const results = [];
+    const conflicts = [];
+
+    for (const sId of targetSectionIds) {
+      const conflict = await examScheduleRepo.findConflict(sId, subjectId, examDate, tenantId);
+      if (conflict) {
+        conflicts.push(sId);
+        continue;
+      }
+
+      const schedule = await examScheduleRepo.create({
+        tenantId,
+        examGroupId,
+        subjectId,
+        sectionId: sId,
+        examDate,
+        startTime: startTime || null,
+        endTime: endTime || null,
+        maxMarks: parseInt(maxMarks),
+        passingMarks: parseInt(passingMarks),
+      });
+
+      const populated = await examScheduleRepo.findByIdPopulated(schedule.id, tenantId);
+      results.push(this.formatResponse(populated));
     }
 
-    const schedule = await examScheduleRepo.create({
-      tenantId,
-      examGroupId,
-      subjectId,
-      sectionId,
-      examDate,
-      startTime: startTime || null,
-      endTime: endTime || null,
-      maxMarks: parseInt(maxMarks),
-      passingMarks: parseInt(passingMarks),
-    });
+    if (results.length === 0 && conflicts.length > 0) {
+      throw new AppError("A schedule for this subject on this date already exists for the selected section(s)", 400);
+    }
 
-    // Re-fetch with full population
-    const populated = await examScheduleRepo.findByIdPopulated(schedule.id, tenantId);
-    return this.formatResponse(populated);
+    return results.length === 1 ? results[0] : results;
   }
 
   async getAllExamSchedules(tenantId, query) {

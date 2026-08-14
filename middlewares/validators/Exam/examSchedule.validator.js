@@ -24,7 +24,23 @@ export const createExamScheduleValidator = createValidator((req) => {
 
   ensureUUID(body.examGroupId, "examGroupId");
   ensureUUID(body.subjectId, "subjectId");
-  ensureUUID(body.sectionId, "sectionId");
+
+  const sectionIds = Array.isArray(body.sectionIds)
+    ? body.sectionIds
+    : Array.isArray(body.sectionId)
+    ? body.sectionId
+    : body.sectionId
+    ? [body.sectionId]
+    : [];
+
+  if (sectionIds.length === 0) {
+    throw new AppError("At least one section must be provided", 400);
+  }
+
+  for (const sId of sectionIds) {
+    ensureUUID(sId, "sectionId");
+  }
+
   ensureDate(body.examDate, "examDate");
   ensurePositiveInteger(body.maxMarks, "maxMarks");
   ensurePositiveInteger(body.passingMarks, "passingMarks");
