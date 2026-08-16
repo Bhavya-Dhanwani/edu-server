@@ -41,7 +41,7 @@ export class SectionRepository extends BaseRepository {
   // Pagination + filters
   async findWithPagination(tenantId, filters = {}, page = 1, limit = 10) {
     const offset = (page - 1) * limit;
-    const { academicYearId, ...restFilters } = filters;
+    const { academicYearId, search, ...restFilters } = filters;
 
     const where = {
       tenantId,
@@ -50,6 +50,11 @@ export class SectionRepository extends BaseRepository {
     };
     if (academicYearId) {
       where.academicYearId = academicYearId;
+    }
+
+    const keyword = String(search ?? "").trim();
+    if (keyword) {
+      where.name = { [Op.iLike]: `%${keyword}%` };
     }
 
     const { count, rows } = await this.model.findAndCountAll({

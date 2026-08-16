@@ -155,6 +155,7 @@ export class MarkService {
     if (query.examScheduleId) filters.examScheduleId = query.examScheduleId;
     if (query.isAbsent === "true") filters.isAbsent = true;
     if (query.isAbsent === "false") filters.isAbsent = false;
+    if (query.search) filters.search = query.search;
 
     return await markRepo.findWithPagination(tenantId, filters, page, limit);
   }

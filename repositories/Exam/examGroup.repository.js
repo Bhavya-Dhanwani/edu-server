@@ -50,10 +50,15 @@ export class ExamGroupRepository extends BaseRepository {
 
   async findWithPagination(tenantId, filters = {}, page = 1, limit = 10) {
     const offset = (page - 1) * limit;
-    const { academicYearId, ...restFilters } = filters;
+    const { academicYearId, search, ...restFilters } = filters;
     const where = { tenantId, ...restFilters };
     if (academicYearId) {
       where.academicYearId = academicYearId;
+    }
+
+    const keyword = String(search ?? "").trim();
+    if (keyword) {
+      where.name = { [Op.iLike]: `%${keyword}%` };
     }
 
     const includes = examGroupIncludes.map((inc) => {

@@ -192,8 +192,21 @@ export class MarkRepository extends BaseRepository {
 
   async findWithPagination(tenantId, filters = {}, page = 1, limit = 10) {
     const offset = (page - 1) * limit;
-    const { academicYearId, ...restFilters } = filters;
+    const { academicYearId, search, page: _p, limit: _l, ...restFilters } = filters;
     const where = { tenantId, ...restFilters };
+
+    const keyword = String(search ?? "").trim();
+    if (keyword) {
+      const term = `%${keyword}%`;
+      const seq = this.model.sequelize;
+      where[Op.or] = [
+        seq.where(seq.col("student.first_name"), Op.iLike, term),
+        seq.where(seq.col("student.last_name"), Op.iLike, term),
+        seq.where(seq.col("student.admission_number"), Op.iLike, term),
+        seq.where(seq.col("student.roll_number"), Op.iLike, term),
+        seq.where(seq.col("examSchedule->subject.name"), Op.iLike, term),
+      ];
+    }
 
     const includes = markIncludesLight.map((inc) => {
       if (inc.as === "examSchedule") {
@@ -229,6 +242,7 @@ export class MarkRepository extends BaseRepository {
       order: [["createdAt", "DESC"]],
       include: includes,
       distinct: true,
+      subQuery: keyword ? false : undefined,
     });
 
     return {

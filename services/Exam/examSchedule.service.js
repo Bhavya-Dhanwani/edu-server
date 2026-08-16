@@ -7,15 +7,15 @@ const examGroupRepo = new ExamGroupRepository();
 
 export class ExamScheduleService {
   async createExamSchedule(tenantId, payload) {
-    const { examGroupId, subjectId, sectionId, sectionIds, examDate, startTime, endTime, maxMarks, passingMarks } = payload;
+    const { examGroupId, subjectId, sectionId, sectionIds, assessmentType, examDate, startTime, endTime, maxMarks, passingMarks } = payload;
 
     const targetSectionIds = Array.isArray(sectionIds)
       ? sectionIds
       : Array.isArray(sectionId)
-      ? sectionId
-      : sectionId
-      ? [sectionId]
-      : [];
+        ? sectionId
+        : sectionId
+          ? [sectionId]
+          : [];
 
     if (targetSectionIds.length === 0) {
       throw new AppError("At least one section must be specified", 400);
@@ -54,7 +54,7 @@ export class ExamScheduleService {
     const conflicts = [];
 
     for (const sId of targetSectionIds) {
-      const conflict = await examScheduleRepo.findConflict(sId, subjectId, examDate, tenantId);
+      const conflict = await examScheduleRepo.findConflict(sId, subjectId, examDate, assessmentType || "theory", tenantId);
       if (conflict) {
         conflicts.push(sId);
         continue;
@@ -65,6 +65,7 @@ export class ExamScheduleService {
         examGroupId,
         subjectId,
         sectionId: sId,
+        assessmentType: assessmentType || "theory",
         examDate,
         startTime: startTime || null,
         endTime: endTime || null,
@@ -77,7 +78,7 @@ export class ExamScheduleService {
     }
 
     if (results.length === 0 && conflicts.length > 0) {
-      throw new AppError("A schedule for this subject on this date already exists for the selected section(s)", 400);
+      throw new AppError("A schedule for this subject and assessment type on this date already exists for the selected section(s)", 400);
     }
 
     return results.length === 1 ? results[0] : results;
@@ -92,6 +93,8 @@ export class ExamScheduleService {
     if (query.subjectId) filters.subjectId = query.subjectId;
     if (query.sectionId) filters.sectionId = query.sectionId;
     if (query.examDate) filters.examDate = query.examDate;
+    if (query.assessmentType) filters.assessmentType = query.assessmentType;
+    if (query.search) filters.search = query.search;
 
     return await examScheduleRepo.findWithPagination(tenantId, filters, page, limit);
   }
@@ -135,16 +138,17 @@ export class ExamScheduleService {
       throw new AppError("endTime must be after startTime", 400);
     }
 
-    if (updateData.examDate || updateData.sectionId || updateData.subjectId) {
+    if (updateData.examDate || updateData.sectionId || updateData.subjectId || updateData.assessmentType) {
       const conflict = await examScheduleRepo.findConflict(
         updateData.sectionId || schedule.sectionId,
         updateData.subjectId || schedule.subjectId,
         updateData.examDate || schedule.examDate,
+        updateData.assessmentType || schedule.assessmentType,
         tenantId,
         id
       );
       if (conflict) {
-        throw new AppError("A schedule for this subject and section on this date already exists", 400);
+        throw new AppError("A schedule for this subject, assessment type, and section on this date already exists", 400);
       }
     }
 
@@ -152,6 +156,7 @@ export class ExamScheduleService {
       ...(updateData.examGroupId !== undefined ? { examGroupId: updateData.examGroupId } : {}),
       ...(updateData.subjectId !== undefined ? { subjectId: updateData.subjectId } : {}),
       ...(updateData.sectionId !== undefined ? { sectionId: updateData.sectionId } : {}),
+      ...(updateData.assessmentType !== undefined ? { assessmentType: updateData.assessmentType } : {}),
       ...(updateData.examDate !== undefined ? { examDate: updateData.examDate } : {}),
       ...(updateData.startTime !== undefined ? { startTime: updateData.startTime } : {}),
       ...(updateData.endTime !== undefined ? { endTime: updateData.endTime } : {}),
@@ -180,23 +185,24 @@ export class ExamScheduleService {
       tenantId: schedule.tenantId,
       examGroup: schedule.examGroup
         ? {
-            id: schedule.examGroup.id,
-            name: schedule.examGroup.name,
-            examType: schedule.examGroup.examType,
-            startDate: schedule.examGroup.startDate,
-            endDate: schedule.examGroup.endDate,
-            isResultPublished: schedule.examGroup.isResultPublished,
-          }
+          id: schedule.examGroup.id,
+          name: schedule.examGroup.name,
+          examType: schedule.examGroup.examType,
+          startDate: schedule.examGroup.startDate,
+          endDate: schedule.examGroup.endDate,
+          isResultPublished: schedule.examGroup.isResultPublished,
+        }
         : { id: schedule.examGroupId },
       subject: schedule.subject || { id: schedule.subjectId },
       section: schedule.section
         ? {
-            id: schedule.section.id,
-            name: schedule.section.name,
-            class: schedule.section.class || null,
-            academicYear: schedule.section.academicYear || null,
-          }
+          id: schedule.section.id,
+          name: schedule.section.name,
+          class: schedule.section.class || null,
+          academicYear: schedule.section.academicYear || null,
+        }
         : { id: schedule.sectionId },
+      assessmentType: schedule.assessmentType || "theory",
       examDate: schedule.examDate,
       startTime: schedule.startTime,
       endTime: schedule.endTime,

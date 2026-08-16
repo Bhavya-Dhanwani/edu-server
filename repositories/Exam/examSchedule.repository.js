@@ -46,8 +46,13 @@ export class ExamScheduleRepository extends BaseRepository {
     });
   }
 
-  async findConflict(sectionId, subjectId, examDate, tenantId, excludeId = null) {
-    const where = { sectionId, subjectId, examDate, tenantId };
+  async findConflict(sectionId, subjectId, examDate, assessmentType = null, tenantId = null, excludeId = null) {
+    const targetTenantId = tenantId || (typeof assessmentType === "string" && !["theory", "practical", "viva", "internal", "external", "other"].includes(assessmentType) ? assessmentType : null);
+    const where = { sectionId, subjectId, examDate };
+    if (targetTenantId) where.tenantId = targetTenantId;
+    if (assessmentType && ["theory", "practical", "viva", "internal", "external", "other"].includes(assessmentType)) {
+      where.assessmentType = assessmentType;
+    }
     if (excludeId) where.id = { [Op.ne]: excludeId };
     return await this.model.findOne({ where });
   }
@@ -61,8 +66,41 @@ export class ExamScheduleRepository extends BaseRepository {
 
   async findWithPagination(tenantId, filters = {}, page = 1, limit = 10) {
     const offset = (page - 1) * limit;
-    const { academicYearId, ...restFilters } = filters;
+    const { academicYearId, search, page: _p, limit: _l, ...restFilters } = filters;
     const where = { tenantId, ...restFilters };
+
+    const keyword = String(search ?? "").trim();
+    if (keyword) {
+      const term = `%${keyword}%`;
+      const compactTerm = `%${keyword.replace(/[\s-]/g, "")}%`;
+      const seq = this.model.sequelize;
+      where[Op.or] = [
+        seq.where(seq.cast(seq.col("ExamSchedule.assessment_type"), "text"), Op.iLike, term),
+        seq.where(seq.col("subject.name"), Op.iLike, term),
+        seq.where(seq.col("section.name"), Op.iLike, term),
+        seq.where(seq.col("section->class.name"), Op.iLike, term),
+        seq.where(
+          seq.fn("CONCAT", seq.col("section->class.name"), "-", seq.col("section.name")),
+          Op.iLike,
+          term
+        ),
+        seq.where(
+          seq.fn("CONCAT", seq.col("section->class.name"), " ", seq.col("section.name")),
+          Op.iLike,
+          term
+        ),
+        seq.where(
+          seq.fn(
+            "REPLACE",
+            seq.fn("CONCAT", seq.col("section->class.name"), seq.col("section.name")),
+            " ",
+            ""
+          ),
+          Op.iLike,
+          compactTerm
+        ),
+      ];
+    }
 
     const includes = scheduleIncludes.map((inc) => {
       if (inc.as === "examGroup") {
@@ -88,6 +126,7 @@ export class ExamScheduleRepository extends BaseRepository {
       order: [["examDate", "ASC"]],
       include: includes,
       distinct: true,
+      subQuery: keyword ? false : undefined,
     });
 
     return {

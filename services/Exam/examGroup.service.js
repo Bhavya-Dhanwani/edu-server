@@ -46,6 +46,7 @@ export class ExamGroupService {
     if (query.examType) filters.examType = query.examType;
     if (query.isResultPublished === "true") filters.isResultPublished = true;
     if (query.isResultPublished === "false") filters.isResultPublished = false;
+    if (query.search) filters.search = query.search;
 
     return await examGroupRepo.findWithPagination(tenantId, filters, page, limit);
   }
