@@ -1,7 +1,9 @@
 import { ExamGroupRepository } from "../../repositories/Exam/examGroup.repository.js";
+import { ExamScheduleRepository } from "../../repositories/Exam/examSchedule.repository.js";
 import { AppError } from "../../utils/AppError.js";
 
 const examGroupRepo = new ExamGroupRepository();
+const examScheduleRepo = new ExamScheduleRepository();
 
 export class ExamGroupService {
   async createExamGroup(tenantId, payload) {
@@ -113,6 +115,33 @@ export class ExamGroupService {
 
     if (examGroup.isResultPublished) {
       throw new AppError("Result is already published", 400);
+    }
+
+    const todayStr = new Date().toISOString().split("T")[0];
+
+    // Lock publishing for future exam groups
+    if (examGroup.startDate && examGroup.startDate > todayStr) {
+      throw new AppError(
+        `Cannot publish results for a future exam group (${examGroup.name} starts on ${examGroup.startDate})`,
+        400
+      );
+    }
+
+    if (examGroup.endDate && examGroup.endDate > todayStr) {
+      throw new AppError(
+        `Cannot publish results before the exam group end date (${examGroup.endDate})`,
+        400
+      );
+    }
+
+    // Check if any schedules in this group are set for future dates
+    const schedules = await examScheduleRepo.findByExamGroup(id, tenantId);
+    const futureSchedule = schedules.find((s) => s.examDate && s.examDate > todayStr);
+    if (futureSchedule) {
+      throw new AppError(
+        `Cannot publish results: Exam schedule on ${futureSchedule.examDate} is in the future`,
+        400
+      );
     }
 
     await examGroupRepo.setResultPublished(id, tenantId, true);

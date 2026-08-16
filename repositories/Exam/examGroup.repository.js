@@ -50,14 +50,29 @@ export class ExamGroupRepository extends BaseRepository {
 
   async findWithPagination(tenantId, filters = {}, page = 1, limit = 10) {
     const offset = (page - 1) * limit;
-    const where = { tenantId, ...filters };
+    const { academicYearId, ...restFilters } = filters;
+    const where = { tenantId, ...restFilters };
+    if (academicYearId) {
+      where.academicYearId = academicYearId;
+    }
+
+    const includes = examGroupIncludes.map((inc) => {
+      if (inc.as === "academicYear") {
+        return {
+          ...inc,
+          where: academicYearId ? { id: academicYearId } : { isCurrent: true },
+          required: true,
+        };
+      }
+      return inc;
+    });
 
     const { count, rows } = await this.model.findAndCountAll({
       where,
       offset,
       limit,
       order: [["createdAt", "DESC"]],
-      include: examGroupIncludes,
+      include: includes,
       distinct: true,
     });
 

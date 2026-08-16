@@ -88,6 +88,12 @@ export class AdmissionLeadService {
       throw new AppError("Cannot modify an admission lead that has already been converted to a student", 400);
     }
 
+    // Validate that lead's academic year is current and not locked
+    const leadYear = await academicYearRepo.findById(lead.academicYearId, tenantId);
+    if (!leadYear || !leadYear.isCurrent || leadYear.isLocked) {
+      throw new AppError("Cannot modify an admission lead from a past or locked academic year", 400);
+    }
+
     if (payload.status && payload.status === "converted") {
       throw new AppError(
         "Status cannot be changed to 'converted' directly. Please use the convert endpoint.",
@@ -98,6 +104,9 @@ export class AdmissionLeadService {
     if (payload.academicYearId) {
       const year = await academicYearRepo.findById(payload.academicYearId, tenantId);
       if (!year) throw new AppError("Academic year not found", 404);
+      if (!year.isCurrent || year.isLocked) {
+        throw new AppError("Cannot reassign lead to a past or locked academic year", 400);
+      }
     }
 
     if (payload.appliedClassId) {
@@ -130,6 +139,12 @@ export class AdmissionLeadService {
 
     if (lead.status === "converted" || lead.convertedStudentId) {
       throw new AppError("Status cannot be changed for an admission lead that has already been converted to a student", 400);
+    }
+
+    // Validate that lead's academic year is current and not locked
+    const leadYear = await academicYearRepo.findById(lead.academicYearId, tenantId);
+    if (!leadYear || !leadYear.isCurrent || leadYear.isLocked) {
+      throw new AppError("Status cannot be changed for an admission lead from a past or locked academic year", 400);
     }
 
     const currentHistory = Array.isArray(lead.statusHistory)
@@ -165,6 +180,12 @@ export class AdmissionLeadService {
 
     if (lead.status === "converted" || lead.convertedStudentId) {
       throw new AppError("Admission lead has already been converted to a student", 400);
+    }
+
+    // Validate that lead's academic year is current and not locked
+    const leadYear = await academicYearRepo.findById(lead.academicYearId, tenantId);
+    if (!leadYear || !leadYear.isCurrent || leadYear.isLocked) {
+      throw new AppError("Cannot convert an admission lead from a past or locked academic year", 400);
     }
 
     if (lead.status !== "approved") {

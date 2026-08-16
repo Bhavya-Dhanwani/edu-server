@@ -10,6 +10,7 @@ const router = express.Router();
 const ctrl = new StudentController();
 
 router.post("/", identifyUser, checkPermission("create:students"), createStudentValidator, ctrl.create);
+router.get("/stats", identifyUser, checkPermission("read:students"), ctrl.getStats);
 router.get("/unassigned", identifyUser, checkPermission("read:students"), ctrl.getUnassigned);
 router.get("/", identifyUser, checkPermission("read:students"), ctrl.getAll);
 router.get("/me", identifyUser, ctrl.getMe);

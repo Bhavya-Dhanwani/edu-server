@@ -15,7 +15,7 @@ const ctrl = new AdmissionLeadController();
 router.post(
   "/",
   identifyUser,
-  // checkPermission("create:admissions"),
+  requireOpenAcademicYear,
   createAdmissionLeadValidator,
   ctrl.create,
 );
@@ -23,14 +23,12 @@ router.post(
 router.get(
   "/",
   identifyUser,
-  // checkPermission("read:admissions"),
   ctrl.getAll,
 );
 
 router.get(
   "/:id",
   identifyUser,
-  // checkPermission("read:admissions"),
   validateUUID("id"),
   ctrl.getOne,
 );
@@ -38,7 +36,7 @@ router.get(
 router.patch(
   "/:id",
   identifyUser,
-  // checkPermission("update:admissions"),
+  requireOpenAcademicYear,
   validateUUID("id"),
   updateAdmissionLeadValidator,
   ctrl.update,
@@ -47,7 +45,7 @@ router.patch(
 router.patch(
   "/:id/status",
   identifyUser,
-  // checkPermission("update:admissions"),
+  requireOpenAcademicYear,
   validateUUID("id"),
   updateAdmissionLeadStatusValidator,
   ctrl.updateStatus,

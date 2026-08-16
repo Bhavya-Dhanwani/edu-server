@@ -169,23 +169,24 @@ export class StudentService {
         }
       }
 
-      // 8. Auto-enroll in section if provided
-      if (sectionId && academicYearId) {
-        // Validate academic year exists
-        const year = await academicYearRepo.findById(academicYearId, tenantId);
-        if (!year) {
-          throw new AppError("Academic year not found", 404);
-        }
-
-        // Validate section exists and belongs to the academic year
+      // 8. Auto-enroll in section if sectionId is provided
+      if (sectionId) {
         const section = await sectionRepo.findById(sectionId, tenantId);
         if (!section) {
           throw new AppError("Section not found", 404);
         }
 
-        if (section.academicYearId !== academicYearId) {
+        let targetAcademicYearId = academicYearId || section.academicYearId;
+        if (!targetAcademicYearId) {
+          const currentYear = await academicYearRepo.findCurrentYear(tenantId);
+          if (currentYear) {
+            targetAcademicYearId = currentYear.id;
+          }
+        }
+
+        if (!targetAcademicYearId) {
           throw new AppError(
-            "Section does not belong to the provided academic year",
+            "Academic year not specified and no active academic year configured",
             400,
           );
         }
@@ -205,7 +206,7 @@ export class StudentService {
             tenantId,
             studentId: student.id,
             sectionId,
-            academicYearId,
+            academicYearId: targetAcademicYearId,
             rollNumber: rollNumber || enrolledCount + 1,
             enrollmentStatus: enrollmentStatus || "regular",
             isCurrent: true,
@@ -231,18 +232,22 @@ export class StudentService {
 
     const filters = {};
     if (query.status) filters.status = query.status;
+    if (query.gender) filters.gender = query.gender;
     if (query.admissionNumber) filters.admissionNumber = query.admissionNumber;
     if (query.userId) filters.userId = query.userId;
     if (query.name) filters.name = query.name;
+    if (query.search) filters.search = query.search;
+    if (query.classId) filters.classId = query.classId;
+    if (query.sectionId) filters.sectionId = query.sectionId;
+    if (query.academicYearId) filters.academicYearId = query.academicYearId;
 
     const result = await studentRepo.findWithPagination(tenantId, filters, page, limit);
-    
-    // Format each student's guardians properly
+
     return {
       ...result,
-      data: result.data.map(student => {
+      data: result.data.map((student) => {
         const studentData = student.get ? student.get({ plain: true }) : student;
-        return this.formatStudentResponse(studentData);
+        return this.formatStudentResponse(studentData, query);
       }),
     };
   }
@@ -457,9 +462,39 @@ export class StudentService {
     }
   }
 
-   formatStudentResponse(student) {
+   formatStudentResponse(student, targetQuery = {}) {
     const enrollments = Array.isArray(student.enrollments) ? student.enrollments : [];
-    const currentEnrollment = enrollments.find((enrollment) => enrollment.isCurrent) || enrollments[0];
+    let selectedEnrollment = null;
+
+    if (targetQuery.sectionId) {
+      selectedEnrollment =
+        enrollments.find(
+          (e) =>
+            (e.sectionId === targetQuery.sectionId || e.section?.id === targetQuery.sectionId) &&
+            (targetQuery.academicYearId ? e.academicYearId === targetQuery.academicYearId : e.academicYear?.isCurrent === true)
+        ) ||
+        enrollments.find(
+          (e) => e.sectionId === targetQuery.sectionId || e.section?.id === targetQuery.sectionId
+        );
+    }
+    if (!selectedEnrollment && targetQuery.classId) {
+      selectedEnrollment =
+        enrollments.find(
+          (e) =>
+            (e.section?.class?.id === targetQuery.classId || e.section?.classId === targetQuery.classId) &&
+            (targetQuery.academicYearId ? e.academicYearId === targetQuery.academicYearId : e.academicYear?.isCurrent === true)
+        ) ||
+        enrollments.find(
+          (e) => e.section?.class?.id === targetQuery.classId || e.section?.classId === targetQuery.classId
+        );
+    }
+    if (!selectedEnrollment && targetQuery.academicYearId) {
+      selectedEnrollment = enrollments.find((e) => e.academicYearId === targetQuery.academicYearId);
+    }
+    if (!selectedEnrollment) {
+      selectedEnrollment = enrollments.find((e) => e.academicYear?.isCurrent === true) || enrollments.find((e) => e.isCurrent) || enrollments[0];
+    }
+
     const formatEnrollment = (enrollment) => ({
       id: enrollment.id,
       rollNumber: enrollment.rollNumber,
@@ -590,8 +625,17 @@ export class StudentService {
               : undefined,
           }))
         : [],
-      enrollment: currentEnrollment ? formatEnrollment(currentEnrollment) : undefined,
+      enrollment: selectedEnrollment ? formatEnrollment(selectedEnrollment) : undefined,
       enrollments: student.enrollments || undefined,
     };
+  }
+
+  async getStudentStats(tenantId, query = {}) {
+    const filters = {};
+    if (query.classId) filters.classId = query.classId;
+    if (query.sectionId) filters.sectionId = query.sectionId;
+    if (query.academicYearId) filters.academicYearId = query.academicYearId;
+
+    return await studentRepo.getStudentStats(tenantId, filters);
   }
 }

@@ -97,6 +97,10 @@ export class StudentRepository extends BaseRepository {
     const offset = (page - 1) * limit;
     const where = { tenantId };
 
+    if (filters.gender) {
+      where.gender = filters.gender;
+    }
+
     if (filters.status) {
       where.status = filters.status;
     }
@@ -109,18 +113,60 @@ export class StudentRepository extends BaseRepository {
       where.userId = filters.userId;
     }
 
-    if (filters.name) {
-      where[Op.or] = this.buildNameSearchClause(filters.name);
+    if (filters.search || filters.name) {
+      const searchTerm = filters.search || filters.name;
+      where[Op.or] = [
+        { firstName: { [Op.iLike]: `%${searchTerm}%` } },
+        { middleName: { [Op.iLike]: `%${searchTerm}%` } },
+        { lastName: { [Op.iLike]: `%${searchTerm}%` } },
+        { admissionNumber: { [Op.iLike]: `%${searchTerm}%` } },
+      ];
     }
 
-      const { count, rows } = await this.model.findAndCountAll({
-        where,
-        offset,
-        limit,
-        distinct: true,
-        order: [["createdAt", "DESC"]],
-        include: STUDENT_DETAILS_INCLUDES,
+    // Filter by sectionId, classId, or active academic year via StudentSectionEnrollment
+    if (filters.sectionId || filters.classId || filters.academicYearId || filters.activeOnly !== false) {
+      const enrollmentWhere = { tenantId };
+      if (filters.sectionId) enrollmentWhere.sectionId = filters.sectionId;
+      if (filters.academicYearId) enrollmentWhere.academicYearId = filters.academicYearId;
+
+      const enrollmentIncludes = [
+        {
+          model: AcademicYear,
+          as: "academicYear",
+          where: filters.academicYearId
+            ? { id: filters.academicYearId }
+            : { isCurrent: true },
+          required: true,
+        },
+      ];
+
+      if (filters.classId) {
+        enrollmentIncludes.push({
+          model: Section,
+          as: "section",
+          where: { classId: filters.classId },
+          required: true,
+        });
+      }
+
+      const matchingEnrollments = await StudentSectionEnrollment.findAll({
+        where: enrollmentWhere,
+        include: enrollmentIncludes,
+        attributes: ["studentId"],
       });
+
+      const matchingStudentIds = matchingEnrollments.map((e) => e.studentId);
+      where.id = { [Op.in]: matchingStudentIds };
+    }
+
+    const { count, rows } = await this.model.findAndCountAll({
+      where,
+      offset,
+      limit,
+      distinct: true,
+      order: [["createdAt", "DESC"]],
+      include: STUDENT_DETAILS_INCLUDES,
+    });
 
     return {
       total: count,
@@ -134,7 +180,7 @@ export class StudentRepository extends BaseRepository {
   async findWithDetails(id, tenantId) {
     return await this.model.findOne({
       where: { id, tenantId },
-        include: STUDENT_DETAILS_INCLUDES,
+      include: STUDENT_DETAILS_INCLUDES,
     });
   }
 
@@ -188,6 +234,65 @@ export class StudentRepository extends BaseRepository {
       limit,
       pages: Math.ceil(count / limit),
       data: unassignedStudents,
+    };
+  }
+
+  async getStudentStats(tenantId, filters = {}) {
+    const where = { tenantId };
+
+    if (filters.sectionId || filters.classId || filters.academicYearId || filters.activeOnly !== false) {
+      const enrollmentWhere = { tenantId };
+      if (filters.sectionId) enrollmentWhere.sectionId = filters.sectionId;
+      if (filters.academicYearId) enrollmentWhere.academicYearId = filters.academicYearId;
+
+      const enrollmentIncludes = [
+        {
+          model: AcademicYear,
+          as: "academicYear",
+          where: filters.academicYearId
+            ? { id: filters.academicYearId }
+            : { isCurrent: true },
+          required: true,
+        },
+      ];
+
+      if (filters.classId) {
+        enrollmentIncludes.push({
+          model: Section,
+          as: "section",
+          where: { classId: filters.classId },
+          required: true,
+        });
+      }
+
+      const matchingEnrollments = await StudentSectionEnrollment.findAll({
+        where: enrollmentWhere,
+        include: enrollmentIncludes,
+        attributes: ["studentId"],
+      });
+
+      const matchingStudentIds = matchingEnrollments.map((e) => e.studentId);
+      where.id = { [Op.in]: matchingStudentIds };
+    }
+
+    const totalStudents = await this.model.count({ where });
+    const activeStudents = await this.model.count({ where: { ...where, status: "active" } });
+    const inactiveStudents = await this.model.count({ where: { ...where, status: "inactive" } });
+
+    const now = new Date();
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const newThisMonth = await this.model.count({
+      where: {
+        ...where,
+        createdAt: { [Op.gte]: startOfMonth },
+      },
+    });
+
+    return {
+      totalStudents,
+      activeStudents,
+      inactiveStudents,
+      newThisMonth,
     };
   }
 }

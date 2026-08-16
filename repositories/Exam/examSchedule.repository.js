@@ -61,14 +61,32 @@ export class ExamScheduleRepository extends BaseRepository {
 
   async findWithPagination(tenantId, filters = {}, page = 1, limit = 10) {
     const offset = (page - 1) * limit;
-    const where = { tenantId, ...filters };
+    const { academicYearId, ...restFilters } = filters;
+    const where = { tenantId, ...restFilters };
+
+    const includes = scheduleIncludes.map((inc) => {
+      if (inc.as === "examGroup") {
+        return {
+          ...inc,
+          include: [
+            {
+              model: AcademicYear,
+              as: "academicYear",
+              where: academicYearId ? { id: academicYearId } : { isCurrent: true },
+              required: true,
+            },
+          ],
+        };
+      }
+      return inc;
+    });
 
     const { count, rows } = await this.model.findAndCountAll({
       where,
       offset,
       limit,
       order: [["examDate", "ASC"]],
-      include: scheduleIncludes,
+      include: includes,
       distinct: true,
     });
 

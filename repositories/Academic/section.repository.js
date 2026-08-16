@@ -41,12 +41,16 @@ export class SectionRepository extends BaseRepository {
   // Pagination + filters
   async findWithPagination(tenantId, filters = {}, page = 1, limit = 10) {
     const offset = (page - 1) * limit;
+    const { academicYearId, ...restFilters } = filters;
 
     const where = {
       tenantId,
       deletedAt: null,
-      ...filters,
+      ...restFilters,
     };
+    if (academicYearId) {
+      where.academicYearId = academicYearId;
+    }
 
     const { count, rows } = await this.model.findAndCountAll({
       where,
@@ -63,6 +67,8 @@ export class SectionRepository extends BaseRepository {
           model: AcademicYear,
           as: "academicYear",
           attributes: ["id", "name", "startDate", "endDate", "isCurrent", "isLocked"],
+          where: academicYearId ? { id: academicYearId } : { isCurrent: true },
+          required: true,
         },
         {
           model: User,
@@ -158,6 +164,8 @@ export class SectionRepository extends BaseRepository {
           model: AcademicYear,
           as: "academicYear",
           attributes: ["id", "name", "startDate", "endDate", "isCurrent", "isLocked", "tenantId"],
+          where: academicYearId ? { id: academicYearId } : { isCurrent: true },
+          required: true,
         },
         {
           model: User,

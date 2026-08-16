@@ -352,6 +352,21 @@ Mark.belongsTo(ExamSchedule, {
   as: "examSchedule",
 });
 
+Mark.belongsTo(Student, {
+  foreignKey: "student_id",
+  as: "student",
+});
+
+Student.hasMany(Mark, {
+  foreignKey: "student_id",
+  as: "marks",
+});
+
+Mark.belongsTo(User, {
+  foreignKey: "entered_by_id",
+  as: "enteredBy",
+});
+
 // ==========================================
 // 9. ADMISSIONS LOGIC
 // ==========================================

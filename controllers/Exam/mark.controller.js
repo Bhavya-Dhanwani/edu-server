@@ -68,8 +68,34 @@ export class MarkController {
     res.status(200).json({ success: true, data });
   });
 
+  getScheduleSummary = catchAsync(async (req, res) => {
+    const data = await markService.getScheduleMarksSummary(
+      req.params.scheduleId,
+      req.tenantId
+    );
+    res.status(200).json({ success: true, data });
+  });
+
+  getExamGroupPlan = catchAsync(async (req, res) => {
+    const data = await markService.getExamGroupMarksPlan(
+      req.params.examGroupId,
+      req.tenantId
+    );
+    res.status(200).json({ success: true, data });
+  });
+
   delete = catchAsync(async (req, res) => {
     const data = await markService.deleteMark(req.params.id, req.tenantId);
     res.status(200).json({ success: true, ...data });
+  });
+
+  getStudentResult = catchAsync(async (req, res) => {
+    const data = await markService.getStudentResult(
+      req.params.studentId,
+      req.tenantId,
+      req.query,
+      req.user
+    );
+    res.status(200).json({ success: true, data });
   });
 }

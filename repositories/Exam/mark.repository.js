@@ -1,8 +1,8 @@
 import { Op } from "sequelize";
-import { Mark, Student, User, ExamSchedule, SubjectMaster, Section } from "../../models/index.js";
+import { Mark, Student, User, ExamSchedule, SubjectMaster, Section, Class, ExamGroup, AcademicYear } from "../../models/index.js";
 import { BaseRepository } from "../base.repository.js";
 
-// Lightweight includes for list endpoints (prevents N+1 with separate: true)
+// Lightweight includes for list endpoints
 const markIncludesLight = [
   {
     model: Student,
@@ -15,7 +15,6 @@ const markIncludesLight = [
         attributes: ["id", "email"],
       },
     ],
-    separate: true,
   },
   {
     model: ExamSchedule,
@@ -33,13 +32,11 @@ const markIncludesLight = [
         attributes: ["id", "name"],
       },
     ],
-    separate: true,
   },
   {
     model: User,
     as: "enteredBy",
     attributes: ["id", "firstName", "lastName", "email"],
-    separate: true,
   },
 ];
 
@@ -104,6 +101,25 @@ export class MarkRepository extends BaseRepository {
   async findByStudent(studentId, tenantId) {
     return await this.model.findAll({
       where: { studentId, tenantId },
+      include: markIncludesLight,
+      order: [["createdAt", "DESC"]],
+    });
+  }
+
+  /**
+   * Batch fetch multiple marks by studentId & examScheduleId pairs (transaction-safe)
+   */
+  async findByKeysBatch(keys, tenantId, transaction = null) {
+    if (!keys || keys.length === 0) return [];
+    return await this.model.findAll({
+      where: {
+        tenantId,
+        [Op.or]: keys.map((k) => ({
+          studentId: k.studentId,
+          examScheduleId: k.examScheduleId,
+        })),
+      },
+      transaction,
       include: markIncludesLight,
       order: [["createdAt", "DESC"]],
     });
@@ -176,7 +192,34 @@ export class MarkRepository extends BaseRepository {
 
   async findWithPagination(tenantId, filters = {}, page = 1, limit = 10) {
     const offset = (page - 1) * limit;
-    const where = { tenantId, ...filters };
+    const { academicYearId, ...restFilters } = filters;
+    const where = { tenantId, ...restFilters };
+
+    const includes = markIncludesLight.map((inc) => {
+      if (inc.as === "examSchedule") {
+        return {
+          ...inc,
+          include: [
+            ...(inc.include || []),
+            {
+              model: ExamGroup,
+              as: "examGroup",
+              include: [
+                {
+                  model: AcademicYear,
+                  as: "academicYear",
+                  where: academicYearId ? { id: academicYearId } : { isCurrent: true },
+                  required: true,
+                },
+              ],
+              required: true,
+            },
+          ],
+          required: true,
+        };
+      }
+      return inc;
+    });
 
     // Use lightweight includes for pagination to prevent N+1
     const { count, rows } = await this.model.findAndCountAll({
@@ -184,7 +227,7 @@ export class MarkRepository extends BaseRepository {
       offset,
       limit,
       order: [["createdAt", "DESC"]],
-      include: markIncludesLight,
+      include: includes,
       distinct: true,
     });
 
@@ -202,6 +245,85 @@ export class MarkRepository extends BaseRepository {
     return await this.model.findOne({
       where: { id, tenantId },
       include: markIncludesFull,
+    });
+  }
+
+  /**
+   * Structured student results query with ExamGroup, Schedule, Subject, Section, and AcademicYear
+   */
+  async findStudentResults(studentId, tenantId, filters = {}) {
+    const { academicYearId, classId, examGroupId, requirePublished = false, allYears = false } = filters;
+
+    const examGroupWhere = {};
+    if (requirePublished) {
+      examGroupWhere.isResultPublished = true;
+    }
+    if (examGroupId) {
+      examGroupWhere.id = examGroupId;
+    }
+
+    const academicYearWhere = {};
+    if (academicYearId) {
+      academicYearWhere.id = academicYearId;
+    } else if (!allYears) {
+      academicYearWhere.isCurrent = true;
+    }
+
+    const sectionWhere = {};
+    if (classId) {
+      sectionWhere.classId = classId;
+    }
+
+    return await this.model.findAll({
+      where: { studentId, tenantId },
+      include: [
+        {
+          model: Student,
+          as: "student",
+          attributes: ["id", "firstName", "middleName", "lastName", "admissionNumber", "rollNumber"],
+        },
+        {
+          model: ExamSchedule,
+          as: "examSchedule",
+          include: [
+            {
+              model: SubjectMaster,
+              as: "subject",
+              attributes: ["id", "name"],
+            },
+            {
+              model: Section,
+              as: "section",
+              where: Object.keys(sectionWhere).length > 0 ? sectionWhere : undefined,
+              include: [
+                {
+                  model: Class,
+                  as: "class",
+                  attributes: ["id", "name"],
+                },
+              ],
+            },
+            {
+              model: ExamGroup,
+              as: "examGroup",
+              where: Object.keys(examGroupWhere).length > 0 ? examGroupWhere : undefined,
+              required: true,
+              include: [
+                {
+                  model: AcademicYear,
+                  as: "academicYear",
+                  where: Object.keys(academicYearWhere).length > 0 ? academicYearWhere : undefined,
+                  required: true,
+                },
+              ],
+            },
+          ],
+          required: true,
+        },
+      ],
+      order: [
+        [{ model: ExamSchedule, as: "examSchedule" }, "examDate", "ASC"],
+      ],
     });
   }
 }

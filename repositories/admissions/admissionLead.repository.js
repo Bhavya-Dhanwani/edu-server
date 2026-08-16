@@ -81,12 +81,23 @@ export class AdmissionLeadRepository extends BaseRepository {
       "guardianEmail",
     ];
 
+    const includes = ADMISSION_LEAD_INCLUDES.map((inc) => {
+      if (inc.as === "academicYear") {
+        return {
+          ...inc,
+          where: academicYearId ? { id: academicYearId } : { isCurrent: true },
+          required: true,
+        };
+      }
+      return inc;
+    });
+
     return await this.search(tenantId, search, searchableFields, {
       filters,
       page,
       limit,
       order: [["createdAt", "DESC"]],
-      include: ADMISSION_LEAD_INCLUDES,
+      include: includes,
     });
   }
 }

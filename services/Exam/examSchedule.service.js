@@ -28,6 +28,20 @@ export class ExamScheduleService {
       throw new AppError("Cannot add schedules to a published exam group", 400);
     }
 
+    if (examGroup.startDate && examDate < examGroup.startDate) {
+      throw new AppError(
+        `Exam date (${examDate}) cannot be before the exam group start date (${examGroup.startDate})`,
+        400
+      );
+    }
+
+    if (examGroup.endDate && examDate > examGroup.endDate) {
+      throw new AppError(
+        `Exam date (${examDate}) cannot be after the exam group end date (${examGroup.endDate})`,
+        400
+      );
+    }
+
     if (parseInt(passingMarks) >= parseInt(maxMarks)) {
       throw new AppError("passingMarks must be less than maxMarks", 400);
     }
@@ -91,6 +105,24 @@ export class ExamScheduleService {
   async updateExamSchedule(id, tenantId, updateData) {
     const schedule = await examScheduleRepo.findById(id, tenantId);
     if (!schedule) throw new AppError("Exam schedule not found", 404);
+
+    const targetExamGroupId = updateData.examGroupId || schedule.examGroupId;
+    const examGroup = await examGroupRepo.findById(targetExamGroupId, tenantId);
+    if (examGroup) {
+      const targetExamDate = updateData.examDate || schedule.examDate;
+      if (examGroup.startDate && targetExamDate < examGroup.startDate) {
+        throw new AppError(
+          `Exam date (${targetExamDate}) cannot be before the exam group start date (${examGroup.startDate})`,
+          400
+        );
+      }
+      if (examGroup.endDate && targetExamDate > examGroup.endDate) {
+        throw new AppError(
+          `Exam date (${targetExamDate}) cannot be after the exam group end date (${examGroup.endDate})`,
+          400
+        );
+      }
+    }
 
     const maxMarks = updateData.maxMarks !== undefined ? parseInt(updateData.maxMarks) : schedule.maxMarks;
     const passingMarks = updateData.passingMarks !== undefined ? parseInt(updateData.passingMarks) : schedule.passingMarks;
