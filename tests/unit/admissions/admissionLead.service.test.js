@@ -158,6 +158,11 @@ describe("AdmissionLeadService", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     service = new AdmissionLeadService();
+    mockAcademicYearRepo.findById.mockResolvedValue({
+      id: academicYearId,
+      isCurrent: true,
+      isLocked: false,
+    });
   });
 
   describe("createLead", () => {

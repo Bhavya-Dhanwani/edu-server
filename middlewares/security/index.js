@@ -44,9 +44,9 @@ export const identifyUser = async (req, res, next) => {
           ],
         });
         req.user.permissions =
-          roleWithPermissions?.permissions?.map((p) => p.name) || ["*"];
+          roleWithPermissions?.permissions?.map((p) => p.name) || [];
       } catch (error) {
-        req.user.permissions = ["*"];
+        req.user.permissions = [];
       }
     }
 

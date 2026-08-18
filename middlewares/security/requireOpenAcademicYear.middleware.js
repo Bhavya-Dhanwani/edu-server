@@ -32,11 +32,11 @@ export const requireOpenAcademicYear = async (req, res, next) => {
       });
     }
 
-    // 3. Attach session context to request & ALWAYS populate req.body.academicYearId
+    // 3. Attach session context to request & populate req.body.academicYearId if not provided
     req.academicYear = academicYear;
     req.academicYearId = academicYear.id;
 
-    if (req.body && typeof req.body === "object") {
+    if (req.body && typeof req.body === "object" && !req.body.academicYearId) {
       req.body.academicYearId = academicYear.id;
     }
 

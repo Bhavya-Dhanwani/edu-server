@@ -91,7 +91,10 @@ export class TenantService {
 
     const transaction = await sequelize.transaction();
     let tenant;
-    console.log(plan[data.billingCycle], "this is price");
+    console.log(
+      data.billingCycle === "yearly" ? plan.yearlyPrice : plan.monthlyPrice,
+      "this is price",
+    );
     try {
       // 2. Create Tenant
       tenant = await tenantRepo.create(
